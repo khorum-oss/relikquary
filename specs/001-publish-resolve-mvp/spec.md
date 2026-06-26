@@ -8,6 +8,19 @@
 
 **Input**: User description: "Core publish-and-resolve MVP for the Relikqary artifact repository — accept a Gradle maven-publish upload, store it via a configurable filesystem backend, and serve it back in Maven-compatible layout so Maven AND Gradle clients resolve it. Defer Gradle Module Metadata specifics, S3/Spaces, auth, multi-repo."
 
+## Clarifications
+
+### Session 2026-06-26
+
+- Q: When an uploaded file's checksum sidecar does not match the uploaded bytes, reject or store as
+  received? → A: Store as received (faithful storage); leave verification to the consuming client.
+  Keep the design open to a future configurable strict-validation mode, togglable globally and
+  overridable per coordinate. Enforcement is out of scope for this MVP.
+- Q: When a release coordinate that already exists is re-published, reject, idempotent-if-identical,
+  or overwrite? → A: Make it a configurable policy. Default to standard Maven semantics: an existing
+  RELEASE coordinate is immutable and a re-publish is rejected with a conflict, while a SNAPSHOT
+  coordinate may be overwritten. Operators can change the policy without code changes.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Publish a library artifact (Priority: P1)
@@ -94,16 +107,16 @@ all via configuration only.
   treat as "artifact unavailable" (so they can fall through to other repositories) rather than an
   error that aborts resolution.
 - **Re-publishing a release coordinate**: A release version that already exists is published again.
-  A published release coordinate is immutable from the consumer's perspective; Relikqary MUST NOT
-  silently corrupt or partially overwrite an existing release. See FR-010 / clarification below for
-  reject-vs-idempotent behavior.
+  Under the default policy a published RELEASE coordinate is immutable, so the re-publish is rejected
+  with a conflict and the stored release is left unchanged; a SNAPSHOT coordinate may be overwritten.
+  The policy is operator-configurable (see FR-010).
 - **Partial artifact set**: Only some files of a coordinate are present (e.g. the POM uploaded but the
   jar upload never arrived, or an interrupted publish). A request for a present file succeeds; a
   request for an absent file returns not-found. Resolution of a dependency whose required files are
   incomplete fails on the client side as a normal missing-artifact, not as a server error.
 - **Checksum mismatch on upload**: A client uploads a file together with a checksum sidecar whose
-  value does not match the uploaded bytes. See FR-009 / clarification below for accept-as-stored vs.
-  reject behavior.
+  value does not match the uploaded bytes. Relikqary stores both exactly as received (default
+  faithful-storage behavior); the consuming client detects the mismatch on download. See FR-009.
 
 ## Requirements *(mandatory)*
 
@@ -131,11 +144,17 @@ all via configuration only.
   response that standard Maven and Gradle clients interpret as "artifact not present in this
   repository" (allowing normal repository fall-through), not a failure that aborts the build.
 - **FR-009**: When an uploaded file is accompanied by a checksum sidecar whose value does not match
-  the uploaded bytes, Relikqary MUST [NEEDS CLARIFICATION: reject the upload as a failed publish, or
-  store the bytes-and-sidecar as received and leave verification to the consuming client?].
-- **FR-010**: When a release coordinate that already exists is published again, Relikqary MUST treat
-  the published release as immutable and MUST [NEEDS CLARIFICATION: reject the re-publish with a
-  conflict, or accept it idempotently only when the incoming bytes are identical to what is stored?].
+  the uploaded bytes, Relikqary MUST store the bytes and the sidecar exactly as received (default
+  faithful-storage behavior) and leave integrity verification to the consuming client, which verifies
+  on download.
+- **FR-009a**: The design MUST NOT preclude a future configurable strict-validation mode that rejects
+  checksum-mismatched uploads, togglable globally and overridable per coordinate. Implementing that
+  enforcement is out of scope for this MVP; only the default store-as-received behavior is required
+  now.
+- **FR-010**: Re-publish behavior MUST be governed by an operator-configurable policy, changeable
+  without code changes. By default Relikqary MUST follow standard Maven semantics: an existing RELEASE
+  coordinate is immutable and a re-publish of it MUST be rejected with a conflict while leaving the
+  stored release unchanged, whereas a SNAPSHOT coordinate MAY be overwritten.
 - **FR-011**: A consumer MUST be able to resolve a published artifact using an unmodified Gradle
   client AND an unmodified Maven client, with both receiving byte-for-byte identical files.
 
@@ -168,6 +187,9 @@ all via configuration only.
   the new location, with no code change and no writes to the previous location.
 - **SC-006**: A request for a never-published coordinate yields a not-found result that does not
   abort a standard client's resolution (the client proceeds to other configured repositories).
+- **SC-007**: Under the default policy, re-publishing an existing RELEASE coordinate is rejected with
+  a conflict and the previously stored files are byte-for-byte unchanged, while re-publishing a
+  SNAPSHOT coordinate replaces its contents.
 
 ## Assumptions
 
@@ -180,6 +202,7 @@ all via configuration only.
   (`.module`) specific handling and feature-variant selection are deferred to a later feature.
 - A single, implicit repository is served; multiple named repositories and repository management are
   out of scope.
-- Release coordinates are the primary target; SNAPSHOT-specific timestamp/build-number semantics are
-  out of scope beyond whatever minimal metadata is needed for a basic resolve.
+- Release coordinates are the primary target. The default re-publish policy treats SNAPSHOT
+  coordinates as overwritable (FR-010), but SNAPSHOT-specific unique-timestamp/build-number metadata
+  semantics are out of scope beyond whatever minimal metadata a basic resolve needs.
 - Standard, unmodified Maven and Gradle clients are the consumers; no custom client is required.

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,7 +31,6 @@
 
 ## Notes
 
-- Two intentional `[NEEDS CLARIFICATION]` markers remain (FR-009 checksum-mismatch behavior; FR-010
-  release re-publish behavior). These are genuine product-policy decisions with no single safe
-  default, kept for `/speckit-clarify` to resolve. All other items pass.
-- Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
+- Both prior `[NEEDS CLARIFICATION]` markers (FR-009 checksum-mismatch; FR-010 release re-publish)
+  were resolved in the 2026-06-26 clarification session and encoded into the spec. No markers remain.
+- All checklist items pass. Spec is ready for `/speckit-plan`.
