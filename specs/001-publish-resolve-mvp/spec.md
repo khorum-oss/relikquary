@@ -114,6 +114,9 @@ all via configuration only.
   jar upload never arrived, or an interrupted publish). A request for a present file succeeds; a
   request for an absent file returns not-found. Resolution of a dependency whose required files are
   incomplete fails on the client side as a normal missing-artifact, not as a server error.
+- **Path traversal / malicious path**: A request targets a path containing `..` or other escape
+  segments. Relikqary rejects it with a 400 and never resolves the path outside the storage root
+  (FR-012).
 - **Checksum mismatch on upload**: A client uploads a file together with a checksum sidecar whose
   value does not match the uploaded bytes. Relikqary stores both exactly as received (default
   faithful-storage behavior); the consuming client detects the mismatch on download. See FR-009.
@@ -157,6 +160,9 @@ all via configuration only.
   stored release unchanged, whereas a SNAPSHOT coordinate MAY be overwritten.
 - **FR-011**: A consumer MUST be able to resolve a published artifact using an unmodified Gradle
   client AND an unmodified Maven client, with both receiving byte-for-byte identical files.
+- **FR-012**: Relikqary MUST reject any request path that attempts to escape the repository root
+  (e.g. `..` path-traversal segments, absolute-path escapes, empty segments) with a `400 Bad Request`,
+  so that no upload or download can read or write outside the configured storage location.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -190,6 +196,8 @@ all via configuration only.
 - **SC-007**: Under the default policy, re-publishing an existing RELEASE coordinate is rejected with
   a conflict and the previously stored files are byte-for-byte unchanged, while re-publishing a
   SNAPSHOT coordinate replaces its contents.
+- **SC-008**: A request whose path contains traversal segments (e.g. `../`) is rejected with a 400 and
+  cannot read or write any file outside the configured storage root.
 
 ## Assumptions
 

@@ -55,6 +55,9 @@ Example for `com.example:widget:1.0.0`:
   it (409) under default policy (FR-010, SC-007).
 - **Not-found is non-fatal**: a missing key yields 404, never an error that aborts client resolution
   (FR-008, SC-006).
+- **Path safety**: a request path that attempts to escape the repository root (`..` segments,
+  absolute escapes, empty segments) yields `400 Bad Request` and never resolves outside the configured
+  storage root (FR-012, SC-008).
 
 ## Out of scope for this contract (deferred)
 

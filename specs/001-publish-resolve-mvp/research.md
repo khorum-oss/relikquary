@@ -41,6 +41,11 @@ exactly as received. Do not synthesize or rewrite it server-side in this slice.
 part of the publish, so storing+serving it satisfies version discovery for the round-trip without a
 metadata generator. This keeps the MVP within faithful-storage behavior.
 
+**Verification guard**: because this decision *assumes* the client uploads `maven-metadata.xml`, the
+publish integration test MUST assert that the metadata file actually arrives in storage after a real
+`maven-publish`. If the chosen publish flow does not upload it, FR-005 version discovery has no source
+and server-side synthesis must be promoted from follow-up into scope.
+
 **Alternatives**: Server-side metadata regeneration/merge (compute `<versions>` from stored
 coordinates) — more robust for concurrent/independent publishes and required once multiple publishers
 or SNAPSHOT timestamping arrive; recorded as a **follow-up hardening task**, out of scope here.
@@ -89,8 +94,10 @@ future S3 backend; rejected.
 
 ## 7. Real-client round-trip verification harness (Principle II — the key decision)
 
-**Decision**: `@SpringBootTest(webEnvironment = RANDOM_PORT)` boots Relikqary against a JUnit
-`@TempDir` storage root. The test then:
+**Decision**: `@SpringBootTest(webEnvironment = RANDOM_PORT)` boots Relikqary with its storage root
+injected via `@DynamicPropertySource` pointing at a JUnit `@TempDir` (matching the constitution's
+explicit `@SpringBootTest` + `DynamicPropertySource` wiring mandate — no hard-coded paths or ports).
+The test then:
 1. Generates a tiny throwaway library project and runs a **real** Gradle `maven-publish` against the
    app URL using Gradle TestKit (`GradleRunner`) — proves SC-001.
 2. Resolves the just-published coordinate with a **real Gradle** consumer project via `GradleRunner`

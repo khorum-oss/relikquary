@@ -1,6 +1,6 @@
 # Implementation Plan: Core Publish-and-Resolve MVP
 
-**Branch**: `claude/ecstatic-cerf-5ohbct` (feature tracked via `.specify/feature.json`) | **Date**: 2026-06-26 | **Spec**: [spec.md](./spec.md)
+**Feature**: `001-publish-resolve-mvp` (tracked via `.specify/feature.json`; developed on git branch `claude/ecstatic-cerf-5ohbct`) | **Date**: 2026-06-26 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/001-publish-resolve-mvp/spec.md`
 
