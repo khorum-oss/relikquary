@@ -1,0 +1,14 @@
+.DS_Store
+.idea
+**/build/**
+.gradle/** 
+
+**/.gradle/**
+
+secret.properties
+
+jreleaser_public.asc
+public.key
+.serena
+*.asc
+*.gpg
