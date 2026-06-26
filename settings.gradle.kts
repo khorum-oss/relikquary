@@ -8,7 +8,9 @@ pluginManagement {
     }
 }
 
-includeModules()
+includeModules(
+    "backend"
+)
 
 class Module(private val moduleName: String) {
     override fun toString(): String = moduleName

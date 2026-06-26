@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.dokka) apply false
-    alias(libs.plugins.ksp) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.kover)
     alias(libs.plugins.sonarqube)
@@ -12,10 +11,7 @@ plugins {
     alias(libs.plugins.khorum.digital.ocean) apply false
 }
 
-group = "org.khorum.oss.konstellation"
-
-extra["dslVersion"] = file("VERSION").readText().trim()
-extra["metaDslVersion"] = libs.versions.meta.dsl.get()
+group = "org.khorum.oss.relikqary"
 
 java {
     toolchain {
@@ -68,14 +64,14 @@ fun Project.sharedRepositories() {
 
 tasks.register("koverMergedReport") {
     group = "verification"
-    description = "Generates coverage report for the dsl module"
+    description = "Generates coverage report for multi-module"
 
-    dependsOn(project(":dsl").tasks.named("koverXmlReport"))
+//    dependsOn(project(":dsl").tasks.named("koverXmlReport"))
 }
 
 sonar {
     properties {
-        property("sonar.projectKey", "khorum-oss_konstellation-dsl")
+        property("sonar.projectKey", "khorum-relikqary")
         property("sonar.organization", "khorum-oss")
         property("sonar.host.url", "https://sonarcloud.io")
         property(
