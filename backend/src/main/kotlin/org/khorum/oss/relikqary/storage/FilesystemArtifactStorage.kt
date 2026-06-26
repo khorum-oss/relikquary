@@ -40,13 +40,14 @@ class FilesystemArtifactStorage(props: StorageProperties) : ArtifactStorage {
         val target = resolve(key)
         Files.createDirectories(target.parent)
         val tmp = Files.createTempFile(target.parent, ".relikqary-", ".tmp")
-        return try {
+        var moved = false
+        try {
             val written = content.use { Files.copy(it, tmp, StandardCopyOption.REPLACE_EXISTING) }
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            written
-        } catch (e: Exception) {
-            Files.deleteIfExists(tmp)
-            throw e
+            moved = true
+            return written
+        } finally {
+            if (!moved) Files.deleteIfExists(tmp)
         }
     }
 }

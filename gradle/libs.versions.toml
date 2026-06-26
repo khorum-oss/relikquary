@@ -7,7 +7,6 @@ detekt = "1.23.6"
 kover = "0.9.1"
 sonarqube = "7.0.0.6105"
 kotlin-logging = "7.0.3"
-mavenInvoker = "3.3.0"
 mockk = "1.13.17"
 
 [libraries]
@@ -24,7 +23,6 @@ kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = 
 
 # Testing
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
-maven-invoker = { module = "org.apache.maven.shared:maven-invoker", version.ref = "mavenInvoker" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

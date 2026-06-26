@@ -31,14 +31,17 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
-    testImplementation(libs.maven.invoker)
-    testImplementation(gradleTestKit())
 }
 
 detekt {
     buildUponDefaultConfig = true
+    config.setFrom(rootProject.layout.projectDirectory.file("config/detekt/detekt.yml"))
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Real-client round-trip tests drive the repo's Gradle wrapper and the system Maven via
+    // external processes (keeping gradle-api/maven libs off the test classpath).
+    systemProperty("relikqary.rootProjectDir", rootProject.layout.projectDirectory.asFile.absolutePath)
+    systemProperty("relikqary.mavenExecutable", System.getenv("MAVEN_EXECUTABLE") ?: "/opt/maven/bin/mvn")
 }

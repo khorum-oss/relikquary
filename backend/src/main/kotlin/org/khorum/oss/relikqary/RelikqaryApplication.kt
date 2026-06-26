@@ -10,6 +10,7 @@ import org.springframework.boot.runApplication
 @EnableConfigurationProperties(StorageProperties::class, PublishProperties::class)
 class RelikqaryApplication
 
+@Suppress("SpreadOperator")
 fun main(args: Array<String>) {
     runApplication<RelikqaryApplication>(*args)
 }

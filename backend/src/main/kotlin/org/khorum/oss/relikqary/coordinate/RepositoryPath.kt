@@ -38,22 +38,22 @@ value class RepositoryPath private constructor(val key: String) {
 
         fun of(rawPath: String): RepositoryPath {
             val trimmed = rawPath.trimStart('/')
-            if (trimmed.isEmpty()) throw InvalidRepositoryPathException("empty repository path")
-            if (trimmed.contains('\\')) {
-                throw InvalidRepositoryPathException("backslash not allowed in path: $rawPath")
-            }
-            val segments = trimmed.split('/')
-            for (segment in segments) {
-                when {
-                    segment.isEmpty() ->
-                        throw InvalidRepositoryPathException("empty path segment in: $rawPath")
-                    segment == "." || segment == ".." ->
-                        throw InvalidRepositoryPathException("path traversal segment in: $rawPath")
-                    segment.any { it.code < MIN_PRINTABLE } ->
-                        throw InvalidRepositoryPathException("control character in path: $rawPath")
-                }
-            }
-            return RepositoryPath(segments.joinToString("/"))
+            val reason = invalidReason(trimmed)
+            if (reason != null) throw InvalidRepositoryPathException("$reason: $rawPath")
+            return RepositoryPath(trimmed)
+        }
+
+        private fun invalidReason(trimmed: String): String? = when {
+            trimmed.isEmpty() -> "empty repository path"
+            trimmed.contains('\\') -> "backslash not allowed in path"
+            else -> trimmed.split('/').firstNotNullOfOrNull { segmentReason(it) }
+        }
+
+        private fun segmentReason(segment: String): String? = when {
+            segment.isEmpty() -> "empty path segment"
+            segment == "." || segment == ".." -> "path traversal segment"
+            segment.any { it.code < MIN_PRINTABLE } -> "control character in path"
+            else -> null
         }
     }
 }
