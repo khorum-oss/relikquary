@@ -42,6 +42,7 @@ class SecurityConfig(private val properties: SecurityProperties) {
         if (properties.enabled) {
             http.authorizeHttpRequests { auth ->
                 auth.requestMatchers(HttpMethod.PUT, "/**").hasRole(PUBLISH_ROLE)
+                    .requestMatchers(HttpMethod.DELETE, "/**").hasRole(PUBLISH_ROLE)
                     .anyRequest().permitAll()
             }.httpBasic { it.realmName("relikquary") }
         } else {

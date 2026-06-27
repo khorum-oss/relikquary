@@ -54,4 +54,39 @@ class FilesystemArtifactStorageTest {
         store.write(key, updated.inputStream())
         assertArrayEquals(updated, store.openRead(key)!!.stream.use { it.readBytes() })
     }
+
+    @Test
+    fun `lists folders and files with metadata`(@TempDir root: Path) {
+        val store = storage(root)
+        store.write("releases/g/a/1.0.0/a-1.0.0.jar", Random.nextBytes(10).inputStream())
+        store.write("releases/g/a/1.0.0/a-1.0.0.pom", Random.nextBytes(20).inputStream())
+
+        val underA = store.list("releases/g/a")
+        assertEquals(listOf("1.0.0"), underA.map { it.name })
+        assertTrue(underA.single().isDirectory)
+
+        val files = store.list("releases/g/a/1.0.0")
+        assertEquals(setOf("a-1.0.0.jar", "a-1.0.0.pom"), files.map { it.name }.toSet())
+        assertTrue(files.all { !it.isDirectory && it.sizeBytes != null && it.lastModified != null })
+    }
+
+    @Test
+    fun `delete removes a file and prunes empty parents`(@TempDir root: Path) {
+        val store = storage(root)
+        store.write("releases/g/a/1.0.0/a-1.0.0.jar", Random.nextBytes(8).inputStream())
+        assertTrue(store.delete("releases/g/a/1.0.0/a-1.0.0.jar"))
+        assertFalse(store.delete("releases/g/a/1.0.0/a-1.0.0.jar"))
+        // The now-empty version/artifact folders are pruned, so the repo lists empty.
+        assertTrue(store.list("releases").isEmpty())
+    }
+
+    @Test
+    fun `deletePrefix removes all files under a folder`(@TempDir root: Path) {
+        val store = storage(root)
+        store.write("releases/g/a/1.0.0/a-1.0.0.jar", Random.nextBytes(8).inputStream())
+        store.write("releases/g/a/1.0.0/a-1.0.0.pom", Random.nextBytes(8).inputStream())
+        store.write("releases/g/a/2.0.0/a-2.0.0.jar", Random.nextBytes(8).inputStream())
+        assertEquals(2, store.deletePrefix("releases/g/a/1.0.0"))
+        assertTrue(store.exists("releases/g/a/2.0.0/a-2.0.0.jar"))
+    }
 }

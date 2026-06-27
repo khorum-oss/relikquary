@@ -16,4 +16,7 @@ class RepositoryRegistry(properties: RepositoryProperties) {
     /** Returns the configured repository, or throws [RepositoryNotFoundException] if unknown. */
     fun require(name: String): RepositoryProperties.Repo =
         byName[name] ?: throw RepositoryNotFoundException(name)
+
+    /** All configured repositories, in declaration order. */
+    fun all(): List<RepositoryProperties.Repo> = byName.values.toList()
 }
