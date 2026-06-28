@@ -27,9 +27,10 @@ security-critical behaviour). All paths under `backend/src/.../org/khorum/oss/re
   `PUBLISH`), explicit grant overrides default, username vs `@role` matching, anonymous denied, disabled
   ⇒ all permitted.
 - [ ] T006 Add `security/RepositoryAuthorizationManager.kt` implementing
-  `AuthorizationManager<RequestAuthorizationContext>`: parse request → `(repoName, action)` per
-  data-model mapping; unknown repo / GROUP / `PUT` to PROXY|GROUP ⇒ grant (controller returns 404/405 or
-  resolver handles group); `GET /api/repositories`, `/api`, `/ui/**` ⇒ grant; otherwise return
+  `AuthorizationManager<RequestAuthorizationContext>`: **unwrap the `Supplier<Authentication>`** (call
+  `.get()`) before deciding; parse request → `(repoName, action)` per data-model mapping; unknown repo /
+  GROUP / `PUT` to PROXY|GROUP ⇒ grant (controller returns 404/405 or resolver handles group); `GET
+  /api/repositories`, `/api`, `/ui/**` ⇒ grant; otherwise return
   `AuthorizationDecision(authorizer.permits(repo, action, auth))`.
 - [ ] T007 [P] Unit test `unit/RepositoryAuthzRequestMappingTest.kt`: Maven `GET`/`PUT` `/{repo}/**`,
   browse `GET .../contents|file/**`, `DELETE /api/repositories/{repo}/**`, and the always-granted paths
@@ -54,7 +55,8 @@ a default repo still accepts a global `PUBLISH` holder.
 
 - [ ] T010 [US1] Integration test `integration/PerRepoPublishAuthzTest.kt`: repo with `publish:[alice]` ⇒
   alice `PUT` 201, bob `PUT` 403, anonymous `PUT` 401; a repo with no grant ⇒ global `PUBLISH` holder 201
-  and an authenticated non-publisher 403.
+  and an authenticated non-publisher 403; an authenticated `PUT` to a proxy/group ⇒ `405` (read-only kind
+  precedes authz, FR-008).
 
 **Checkpoint**: publishing is scoped per repository.
 
@@ -94,8 +96,8 @@ read policy (skip-and-continue); security disabled ⇒ all open.
   denied the private member and gets the open member's copy when present, else `404`; group reads never
   return `401`.
 - [ ] T016 [P] [US3] Integration test `integration/BackwardCompatAuthzTest.kt`: with no `access` blocks,
-  open reads + global-`PUBLISH`-gated writes (regression); with `security.enabled=false`, every action on
-  every repo is permitted.
+  open reads + global-`PUBLISH`-gated writes (regression); a traversal path still returns `400` (FR-011,
+  unchanged); with `security.enabled=false`, every action on every repo is permitted.
 
 **Checkpoint**: authorization is uniform across delete, browse, group, and the disable switch.
 

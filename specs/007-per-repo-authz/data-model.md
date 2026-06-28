@@ -46,6 +46,8 @@ matches authority `ROLE_team` (Spring stores configured role `team` as `ROLE_tea
 
 `AuthorizationManager<RequestAuthorizationContext>` wired into the filter chain when security is enabled.
 
+- Spring invokes `check(Supplier<Authentication>, RequestAuthorizationContext)`; the manager **unwraps the
+  supplier** (`.get()`) to obtain the `Authentication` before calling `RepositoryAuthorizer.permits(...)`.
 - Parses the request into `(repoName, action)` (see Request mapping); looks up the repo via
   `RepositoryRegistry`.
 - **Unknown repo** ⇒ grant (let the controller return `404`; existence is not secret).
