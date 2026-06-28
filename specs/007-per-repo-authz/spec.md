@@ -13,6 +13,20 @@ preserve Maven/Gradle HTTP Basic compatibility (401 vs 403), and apply consisten
 wire protocol, the browse/manage API, and proxy/group repositories (a group applies the access rules of
 whichever member serves the artifact)."
 
+## Clarifications
+
+### Session 2026-06-28
+
+- Q: How are per-repository permissions expressed? → A: On the repository — each repo optionally lists
+  permitted principals per action (`read`/`publish`/`delete`); a principal is a username or a role
+  (e.g. `@team`). All of a repo's access lives with that repo's config.
+- Q: Group member has the artifact but the user lacks read on it? → A: Continue to the next member
+  (permissive union) — a read-denied member is treated like a non-serving member; the group returns
+  `404` only if no member both has the artifact and permits the user.
+- Q: Add a global admin/superuser role? → A: No — the existing global publish authority remains the
+  default publisher/deleter for repos that declare no grants (backward compatible); a repo's explicit
+  grants override the default for that repo. A dedicated admin role is out of scope.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Control who can publish to a repository (Priority: P1)
@@ -102,8 +116,10 @@ is open.
 
 ### Functional Requirements
 
-- **FR-001**: A repository MAY declare, in the same static configuration as users, which principals may
-  perform each action: READ (resolve/download + browse), PUBLISH (upload), and DELETE.
+- **FR-001**: A repository MAY declare, on the repository in the same static configuration as users,
+  which principals may perform each action: READ (resolve/download + browse), PUBLISH (upload), and
+  DELETE. A principal is a configured username or a role (e.g. `@team`); a user matches a grant if their
+  username is listed or they hold a listed role.
 - **FR-002**: A repository that declares no READ restriction MUST remain open (anonymous reads allowed),
   preserving current behavior.
 - **FR-003**: A hosted repository that declares no PUBLISH restriction MUST continue to accept publishes
@@ -116,8 +132,10 @@ is open.
 - **FR-006**: PUBLISH authorization MUST govern `PUT` (upload) to a hosted repository.
 - **FR-007**: DELETE authorization MUST govern the manage `DELETE` operation for a repository.
 - **FR-008**: Proxy and group repositories remain read-only (publish ⇒ `405`); READ authorization MUST
-  gate a proxy's resolution, and a group request MUST be governed by the READ policy of the member that
-  serves the artifact.
+  gate a proxy's resolution. A group MUST resolve member-by-member applying each member's READ policy: a
+  member that has the artifact but denies the requesting user is skipped like a non-serving member; the
+  group returns the artifact from the first member that both has it and permits the user, or `404` if
+  none do.
 - **FR-009**: When security is globally disabled, all per-repository rules MUST be ignored and every
   action on every repository MUST be permitted (local-dev bypass).
 - **FR-010**: Authorization MUST use the existing HTTP Basic mechanism and configured users (with their
@@ -148,16 +166,16 @@ is open.
 
 ## Assumptions
 
-- **Grant model**: each repository optionally lists permitted users and/or roles per action; an action
-  with no list falls back to its default (READ open; PUBLISH gated by the existing global publish
-  authorization; DELETE gated by that same authorization), keeping current behavior. (To confirm in
-  `/speckit-clarify`.)
+- **Grant model**: permissions are declared on each repository as per-action lists of principals
+  (usernames or `@role`s); an action with no list falls back to its default (READ open; PUBLISH gated by
+  the existing global publish authorization; DELETE gated by that same authorization), keeping current
+  behavior. An explicit grant on a repository overrides the default for that action on that repository.
 - **Global publish role**: the existing global publish authorization remains valid as the default
-  publisher for repositories that do not declare their own publishers; a dedicated admin/superuser role
-  is out of scope.
+  publisher/deleter for repositories that do not declare their own grants; a dedicated admin/superuser
+  role is out of scope.
 - **Group read semantics**: a group resolves by first match; a member that *has* the artifact but denies
   the requesting user is treated like a non-serving member, so the group continues to the next member
-  (permissive union). (To confirm in `/speckit-clarify`.)
+  (permissive union), returning `404` only if no member both has the artifact and permits the user.
 - **Static config only**: permissions live in configuration alongside users; a database-backed store and
   any user/permission management UI are out of scope (later specs).
 - **Proxy upstream credentials** (feature 006) are server→upstream only and unrelated to this
