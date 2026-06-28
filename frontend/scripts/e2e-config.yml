@@ -1,0 +1,29 @@
+# Standalone backend config for the frontend e2e (feature 008). Loaded via --spring.config.location so it
+# fully replaces the baked application.yml (no list-merge surprises). Auth is ON with one publisher
+# (alice) who owns a private repo; 'releases' is open-read. Storage root is overridden per-run by a flag.
+relikquary:
+  security:
+    enabled: true
+    users:
+      - username: alice
+        password: "{noop}pw"
+        roles: [PUBLISH]
+  repositories:
+    - name: releases          # open read; publish needs the global PUBLISH role (alice)
+      kind: hosted
+      type: mixed
+    - name: private           # alice-only read/publish/delete
+      kind: hosted
+      type: mixed
+      access:
+        read: [alice]
+        publish: [alice]
+        delete: [alice]
+  storage:
+    backend: filesystem
+    filesystem:
+      root: ${RELIKQUARY_STORAGE_ROOT:./relikquary-store}
+spring:
+  servlet:
+    multipart:
+      enabled: false
