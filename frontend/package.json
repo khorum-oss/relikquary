@@ -8,14 +8,19 @@
     "build": "vite build",
     "preview": "vite preview --port 4173",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@storybook/addon-svelte-csf": "^5.1.2",
+    "@storybook/sveltekit": "^10.4.6",
     "@sveltejs/adapter-static": "^3.0.8",
     "@sveltejs/kit": "^2.15.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@types/node": "^22.20.0",
+    "storybook": "^10.4.6",
     "svelte": "^5.16.0",
     "svelte-check": "^4.1.1",
     "typescript": "^5.7.2",

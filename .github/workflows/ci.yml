@@ -57,6 +57,9 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+      - name: Build Storybook component catalog
+        working-directory: frontend
+        run: npm run build-storybook
 
   e2e:
     name: Frontend e2e (real backend + Chromium)

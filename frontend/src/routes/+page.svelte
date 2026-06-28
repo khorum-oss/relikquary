@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { listRepositories, type RepositorySummary } from '$lib/api';
+  import RepositoryRow from '$lib/components/RepositoryRow.svelte';
 
   let repos = $state<RepositorySummary[]>([]);
   let error = $state('');
@@ -22,10 +23,7 @@
 
 <ul class="repos">
   {#each repos as repo (repo.name)}
-    <li>
-      <a href={`/r/${repo.name}/`} data-testid="repo-link">{repo.name}</a>
-      <span class="type">{repo.type}</span>
-    </li>
+    <RepositoryRow {repo} />
   {/each}
 </ul>
 
@@ -37,20 +35,6 @@
   .repos {
     list-style: none;
     padding: 0;
-  }
-  .repos li {
-    padding: 0.6rem 0.8rem;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    margin-bottom: 0.5rem;
-    display: flex;
-    justify-content: space-between;
-  }
-  .type {
-    color: #718096;
-    font-size: 0.8rem;
-    text-transform: lowercase;
   }
   .error {
     color: #c53030;

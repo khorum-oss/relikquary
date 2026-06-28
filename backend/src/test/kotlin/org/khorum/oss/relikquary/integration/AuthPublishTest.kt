@@ -1,6 +1,8 @@
 package org.khorum.oss.relikquary.integration
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.test.context.SpringBootTest
@@ -87,5 +89,25 @@ class AuthPublishTest {
         assertEquals(201, put(path, Random.nextBytes(256), basic("publisher", "pub-secret")))
         // Read stays open — no credentials required.
         assertEquals(200, get(path))
+    }
+
+    private fun unauthenticatedPut(path: String, xhr: Boolean): HttpResponse<Void> {
+        val builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
+            .PUT(HttpRequest.BodyPublishers.ofByteArray(Random.nextBytes(8)))
+        if (xhr) builder.header("X-Requested-With", "XMLHttpRequest")
+        return http.send(builder.build(), HttpResponse.BodyHandlers.discarding())
+    }
+
+    @Test
+    fun `a 401 carries the Basic challenge for Maven clients but not for browser XHR`() {
+        // Maven/Gradle clients (no X-Requested-With) get the WWW-Authenticate challenge (feature 002).
+        val maven = unauthenticatedPut("/releases/com/example/auth/2.0.0/auth-2.0.0.jar", xhr = false)
+        assertEquals(401, maven.statusCode())
+        assertTrue(maven.headers().firstValue("WWW-Authenticate").isPresent)
+
+        // Browser XHR (X-Requested-With) gets a bare 401 so the browser shows no native auth dialog (008).
+        val xhr = unauthenticatedPut("/releases/com/example/auth/2.0.1/auth-2.0.1.jar", xhr = true)
+        assertEquals(401, xhr.statusCode())
+        assertFalse(xhr.headers().firstValue("WWW-Authenticate").isPresent)
     }
 }

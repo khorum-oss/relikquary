@@ -1,5 +1,6 @@
 package org.khorum.oss.relikquary.config
 
+import jakarta.servlet.http.HttpServletResponse
 import org.khorum.oss.relikquary.security.RepositoryAuthorizationManager
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -10,7 +11,9 @@ import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.factory.PasswordEncoderFactories
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
+import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint
 
 /**
  * Spring Security configuration for the repository protocol (features 002 + 007). When auth is enabled,
@@ -46,10 +49,27 @@ class SecurityConfig(
         if (properties.enabled) {
             http.authorizeHttpRequests { auth ->
                 auth.anyRequest().access(authorizationManager)
-            }.httpBasic { it.realmName("relikquary") }
+            }.httpBasic { it.authenticationEntryPoint(entryPoint()) }
         } else {
             http.authorizeHttpRequests { it.anyRequest().permitAll() }
         }
         return http.build()
+    }
+
+    /**
+     * Returns `401` with a `WWW-Authenticate: Basic` challenge for Maven/Gradle clients, but omits the
+     * challenge header for browser XHR (requests sending `X-Requested-With: XMLHttpRequest`) so the
+     * browser does not hijack the response with its native Basic-auth dialog — the web UI shows its own
+     * login prompt instead. The Maven/Gradle wire behaviour (002) is unchanged.
+     */
+    private fun entryPoint(): AuthenticationEntryPoint {
+        val basic = BasicAuthenticationEntryPoint().apply { setRealmName("relikquary") }
+        return AuthenticationEntryPoint { request, response, ex ->
+            if (request.getHeader("X-Requested-With") == "XMLHttpRequest") {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+            } else {
+                basic.commence(request, response, ex)
+            }
+        }
     }
 }

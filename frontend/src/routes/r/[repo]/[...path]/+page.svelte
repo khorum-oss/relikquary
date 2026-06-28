@@ -1,33 +1,76 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import {
+    listRepositories,
     listContents,
     fileDetails,
     deleteEntry,
-    basicAuth,
+    download,
+    upload,
+    ApiError,
     type ContentsResponse,
     type FileDetails,
   } from '$lib/api';
+  import { login } from '$lib/auth.svelte';
+  import Breadcrumbs from '$lib/components/Breadcrumbs.svelte';
+  import FileListing from '$lib/components/FileListing.svelte';
+  import FileDetailsPanel from '$lib/components/FileDetailsPanel.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import ErrorBanner from '$lib/components/ErrorBanner.svelte';
+  import LoginForm from '$lib/components/LoginForm.svelte';
+  import UploadForm from '$lib/components/UploadForm.svelte';
 
   let repo = $derived($page.params.repo ?? '');
   let path = $derived($page.params.path ?? '');
 
+  let kind = $state('HOSTED');
   let contents = $state<ContentsResponse | null>(null);
   let selected = $state<FileDetails | null>(null);
   let error = $state('');
+  let forbidden = $state('');
+  let needLogin = $state(false);
+  let loginError = $state('');
+  let showUpload = $state(false);
+  let pendingRetry: (() => Promise<void>) | null = null;
 
   function join(base: string, name: string): string {
     return base ? `${base}/${name}` : name;
   }
 
+  /** Centralised error handling: 401 prompts login (with a retry), 403 is forbidden, others are shown. */
+  function handle(e: unknown, retry: () => Promise<void>) {
+    if (e instanceof ApiError) {
+      if (e.status === 401) {
+        pendingRetry = retry;
+        needLogin = true;
+      } else if (e.status === 403) {
+        forbidden = 'You are not permitted to access this repository.';
+      } else if (e.status === 404) {
+        error = 'Not found';
+      } else {
+        error = `Failed (${e.status})`;
+      }
+    } else {
+      error = `Failed (${e})`;
+    }
+  }
+
   async function load(r: string, p: string) {
     error = '';
+    forbidden = '';
     selected = null;
+    showUpload = false;
     try {
+      const repos = await listRepositories();
+      kind = repos.find((x) => x.name === r)?.kind ?? 'HOSTED';
+      if (kind === 'GROUP') {
+        contents = null;
+        return;
+      }
       contents = await listContents(r, p);
     } catch (e) {
       contents = null;
-      error = e instanceof Error && e.message === '404' ? 'Not found' : `Failed to load (${e})`;
+      handle(e, () => load(r, p));
     }
   }
 
@@ -36,150 +79,127 @@
   });
 
   async function openFile(name: string) {
-    selected = await fileDetails(repo, join(path, name));
+    try {
+      selected = await fileDetails(repo, join(path, name));
+    } catch (e) {
+      handle(e, () => openFile(name));
+    }
   }
 
   async function remove(name: string) {
     if (!confirm(`Delete ${name}?`)) return;
     const target = join(path, name);
-    let ok = await deleteEntry(repo, target);
-    if (!ok) {
-      const creds = prompt('Credentials required to delete (username:password)');
-      if (!creds) return;
-      const idx = creds.indexOf(':');
-      ok = await deleteEntry(repo, target, basicAuth(creds.slice(0, idx), creds.slice(idx + 1)));
+    try {
+      await deleteEntry(repo, target);
+      await load(repo, path);
+    } catch (e) {
+      handle(e, () => remove(name));
     }
-    if (ok) await load(repo, path);
   }
 
-  let crumbs = $derived(path ? path.split('/') : []);
+  async function doDownload() {
+    if (!selected) return;
+    const current = selected;
+    try {
+      const blob = await download(current.repository, current.path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = current.path.split('/').pop() ?? 'download';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      handle(e, doDownload);
+    }
+  }
+
+  /** Returns an error message on failure, or null on success (the form clears + listing refreshes). */
+  async function doUpload(targetPath: string, file: File): Promise<string | null> {
+    const status = await upload(repo, targetPath, file);
+    if (status === 200 || status === 201) {
+      await load(repo, path);
+      showUpload = false;
+      return null;
+    }
+    if (status === 401) {
+      needLogin = true;
+      return 'Log in to upload.';
+    }
+    if (status === 403) return 'You are not permitted to publish here.';
+    if (status === 409) return 'Conflict: this release already exists and is immutable.';
+    if (status === 405) return 'This repository does not accept uploads.';
+    return `Upload failed (${status}).`;
+  }
+
+  async function onLogin(username: string, password: string) {
+    login(username, password);
+    needLogin = false;
+    loginError = '';
+    const retry = pendingRetry;
+    pendingRetry = null;
+    if (!retry) return;
+    try {
+      await retry();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        needLogin = true;
+        loginError = 'Invalid credentials.';
+      } else {
+        handle(e, retry);
+      }
+    }
+  }
 </script>
 
-<nav class="crumbs" data-testid="breadcrumbs">
-  <a href="/">repositories</a>
-  <span>/</span>
-  <a href={`/r/${repo}/`}>{repo}</a>
-  {#each crumbs as seg, i}
-    <span>/</span>
-    <a href={`/r/${repo}/${crumbs.slice(0, i + 1).join('/')}`}>{seg}</a>
-  {/each}
-</nav>
+<Breadcrumbs {repo} {path} />
 
-{#if error}
-  <p class="error" data-testid="error">{error}</p>
+{#if needLogin}
+  <LoginForm onSubmit={onLogin} onCancel={() => (needLogin = false)} error={loginError}
+    title="Log in to continue" />
 {/if}
 
-{#if contents}
-  <table data-testid="listing">
-    <thead><tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr></thead>
-    <tbody>
-      {#each contents.entries as entry (entry.name)}
-        <tr>
-          <td>
-            {#if entry.kind === 'folder'}
-              📁 <a href={`/r/${repo}/${join(path, entry.name)}`}>{entry.name}/</a>
-            {:else}
-              📄 <button class="link" onclick={() => openFile(entry.name)} data-testid="file">{entry.name}</button>
-            {/if}
-          </td>
-          <td>{entry.size ?? ''}</td>
-          <td>{entry.lastModified ? new Date(entry.lastModified).toLocaleString() : ''}</td>
-          <td><button class="danger" onclick={() => remove(entry.name)} data-testid="delete">Delete</button></td>
-        </tr>
-      {/each}
-      {#if contents.entries.length === 0}
-        <tr><td colspan="4" class="empty">Empty</td></tr>
-      {/if}
-    </tbody>
-  </table>
+{#if forbidden}
+  <ErrorBanner message={forbidden} />
+{/if}
+{#if error}
+  <ErrorBanner message={error} />
+{/if}
+
+{#if kind === 'GROUP'}
+  <EmptyState testid="group-aggregate"
+    message={`'${repo}' is a group repository — an aggregate of its member repositories. Browse its members directly.`} />
+{:else if contents}
+  {#if kind === 'HOSTED'}
+    <div class="toolbar">
+      <button data-testid="upload-toggle" onclick={() => (showUpload = !showUpload)}>
+        {showUpload ? 'Close upload' : 'Upload…'}
+      </button>
+    </div>
+    {#if showUpload}
+      <UploadForm {repo} basePath={path} onUpload={doUpload} />
+    {/if}
+  {/if}
+
+  <FileListing {repo} {path} entries={contents.entries} onOpen={openFile} onDelete={remove} />
 {/if}
 
 {#if selected}
-  <aside class="details" data-testid="details">
-    <h3>{selected.path.split('/').pop()}</h3>
-    <dl>
-      <dt>Path</dt><dd>{selected.repository}/{selected.path}</dd>
-      <dt>Size</dt><dd>{selected.size} bytes</dd>
-      {#if selected.lastModified}<dt>Modified</dt><dd>{new Date(selected.lastModified).toLocaleString()}</dd>{/if}
-      {#each Object.entries(selected.checksums) as [algo, value]}
-        <dt>{algo}</dt><dd class="mono">{value}</dd>
-      {/each}
-    </dl>
-    <a class="button" href={selected.downloadUrl} data-testid="download">Download</a>
-  </aside>
+  <FileDetailsPanel details={selected} onDownload={doDownload} />
 {/if}
 
 <style>
-  .crumbs {
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.6rem;
   }
-  .crumbs span {
-    color: #a0aec0;
-    margin: 0 0.25rem;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-  }
-  th, td {
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #edf2f7;
-    font-size: 0.9rem;
-  }
-  .empty {
-    color: #a0aec0;
-    text-align: center;
-  }
-  button.link {
-    background: none;
-    border: none;
-    color: #3182ce;
-    cursor: pointer;
-    padding: 0;
-    font: inherit;
-  }
-  button.danger {
-    background: #fff5f5;
-    border: 1px solid #feb2b2;
-    color: #c53030;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-  .details {
-    margin-top: 1.25rem;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 1rem;
-  }
-  .details dl {
-    display: grid;
-    grid-template-columns: 7rem 1fr;
-    gap: 0.25rem 0.75rem;
-  }
-  .details dt {
-    color: #718096;
-  }
-  .mono {
-    font-family: monospace;
-    word-break: break-all;
-  }
-  .button {
-    display: inline-block;
-    margin-top: 0.75rem;
+  .toolbar button {
     background: #3182ce;
     color: #fff;
-    padding: 0.4rem 0.9rem;
+    border: none;
     border-radius: 4px;
-    text-decoration: none;
-  }
-  .error {
-    color: #c53030;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+    font: inherit;
   }
 </style>

@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
-# Runs the frontend Playwright e2e against a real backend:
-#   1. starts the backend bootJar (auth disabled, temp filesystem store),
-#   2. seeds an artifact via the Maven publish endpoint,
-#   3. runs Playwright (which starts `vite dev`, proxying /api + downloads to the backend),
+# Runs the frontend Playwright e2e against a real backend with AUTH ENABLED (feature 008):
+#   1. starts the backend bootJar with scripts/e2e-config.yml (alice publisher; open 'releases',
+#      alice-only 'private'),
+#   2. seeds artifacts (with credentials) into both repos,
+#   3. runs Playwright (which starts `vite dev`, proxying /api + repo paths to the backend),
 #   4. tears the backend down.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 JAR="$ROOT/backend/build/libs/backend.jar"
+CONFIG="$ROOT/frontend/scripts/e2e-config.yml"
 STORE="$(mktemp -d)"
 CURL=(curl -sf --noproxy '*')
+ALICE=(-u alice:pw)
 
 [ -f "$JAR" ] || { echo "Build the backend jar first: ./gradlew :backend:bootJar"; exit 1; }
 
-echo "Starting backend (auth off, store=$STORE)..."
+echo "Starting backend (auth on, store=$STORE)..."
 java -jar "$JAR" \
-  --relikquary.security.enabled=false \
+  --spring.config.location="file:$CONFIG" \
   --relikquary.storage.filesystem.root="$STORE" \
   >/tmp/relikquary-e2e-backend.log 2>&1 &
 BPID=$!
@@ -27,11 +30,16 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 
-echo "Seeding an artifact..."
-base="http://127.0.0.1:8080/releases/com/example/widget/1.0.0/widget-1.0.0"
-printf 'jar-bytes-here' | "${CURL[@]}" -X PUT --data-binary @- "$base.jar"
-printf '<project/>'     | "${CURL[@]}" -X PUT --data-binary @- "$base.pom"
-printf 'deadbeef'       | "${CURL[@]}" -X PUT --data-binary @- "$base.jar.sha1"
+seed() { # repo path-base
+  local base="http://127.0.0.1:8080/$1/$2"
+  printf 'jar-bytes-here' | "${CURL[@]}" "${ALICE[@]}" -X PUT --data-binary @- "$base.jar"
+  printf '<project/>'     | "${CURL[@]}" "${ALICE[@]}" -X PUT --data-binary @- "$base.pom"
+  printf 'deadbeef'       | "${CURL[@]}" "${ALICE[@]}" -X PUT --data-binary @- "$base.jar.sha1"
+}
+
+echo "Seeding artifacts (open + private)..."
+seed releases com/example/widget/1.0.0/widget-1.0.0
+seed private com/acme/lib/1.0.0/lib-1.0.0
 
 echo "Running Playwright..."
 cd "$ROOT/frontend"
