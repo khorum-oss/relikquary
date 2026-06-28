@@ -1,10 +1,12 @@
 package org.khorum.oss.relikquary.storage
 
 import java.io.InputStream
+import java.time.Instant
 
 /**
  * Stores and serves artifact files keyed by their repository-layout path. Implementations MUST
- * preserve bytes exactly (FR-003) and never alter, re-encode, or re-checksum stored content.
+ * preserve bytes exactly (FR-003) and never alter, re-encode, or re-checksum stored content. Browse
+ * and read operations never mutate; only [write], [delete], and [deletePrefix] change state.
  */
 interface ArtifactStorage {
 
@@ -16,10 +18,27 @@ interface ArtifactStorage {
 
     /** Persists [content] at [key], replacing any existing content atomically. Returns bytes written. */
     fun write(key: String, content: InputStream): Long
+
+    /** Lists the immediate children (folders and files) directly under [prefix] (empty = root). */
+    fun list(prefix: String): List<StorageEntry>
+
+    /** Deletes the single file at [key]. Returns true if a file was removed, false if it was absent. */
+    fun delete(key: String): Boolean
+
+    /** Recursively deletes every file under [prefix]. Returns the number of files removed. */
+    fun deletePrefix(prefix: String): Int
 }
 
 /** A readable handle to a stored artifact and its size in bytes. */
 class StoredArtifact(
     val stream: InputStream,
     val sizeBytes: Long,
+)
+
+/** An entry in a storage listing: a folder, or a file with its size and last-modified time. */
+data class StorageEntry(
+    val name: String,
+    val isDirectory: Boolean,
+    val sizeBytes: Long? = null,
+    val lastModified: Instant? = null,
 )

@@ -5,9 +5,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.Delete
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import java.io.InputStream
 import java.nio.file.Files
@@ -57,5 +62,49 @@ class S3ArtifactStorage(
         } finally {
             Files.deleteIfExists(tmp)
         }
+    }
+
+    override fun list(prefix: String): List<StorageEntry> {
+        val norm = normalizeFolder(prefix)
+        val request = ListObjectsV2Request.builder().bucket(bucket).prefix(norm).delimiter("/").build()
+        val pages = s3.listObjectsV2Paginator(request)
+        val entries = mutableListOf<StorageEntry>()
+        pages.commonPrefixes().forEach { cp ->
+            val name = cp.prefix().removePrefix(norm).trimEnd('/')
+            if (name.isNotEmpty()) entries += StorageEntry(name, isDirectory = true)
+        }
+        pages.contents().forEach { obj ->
+            val name = obj.key().removePrefix(norm)
+            if (name.isNotEmpty() && !name.contains('/')) {
+                entries += StorageEntry(name, false, obj.size(), obj.lastModified())
+            }
+        }
+        return entries.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
+    }
+
+    override fun delete(key: String): Boolean {
+        if (!exists(key)) return false
+        s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build())
+        return true
+    }
+
+    override fun deletePrefix(prefix: String): Int {
+        val norm = normalizeFolder(prefix)
+        val request = ListObjectsV2Request.builder().bucket(bucket).prefix(norm).build()
+        val keys = s3.listObjectsV2Paginator(request).contents().map { it.key() }.toList()
+        keys.chunked(DELETE_BATCH).forEach { batch ->
+            val ids = batch.map { ObjectIdentifier.builder().key(it).build() }
+            s3.deleteObjects(
+                DeleteObjectsRequest.builder().bucket(bucket).delete(Delete.builder().objects(ids).build()).build(),
+            )
+        }
+        return keys.size
+    }
+
+    private fun normalizeFolder(prefix: String): String =
+        if (prefix.isEmpty() || prefix.endsWith("/")) prefix else "$prefix/"
+
+    private companion object {
+        const val DELETE_BATCH = 1000
     }
 }

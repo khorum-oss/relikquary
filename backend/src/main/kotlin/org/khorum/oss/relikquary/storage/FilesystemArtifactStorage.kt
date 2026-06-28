@@ -7,6 +7,8 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.Comparator
+import kotlin.io.path.name
 
 /**
  * Filesystem-backed [ArtifactStorage] rooted at a configurable base directory (FR-002, FR-007).
@@ -50,6 +52,57 @@ class FilesystemArtifactStorage(props: StorageProperties) : ArtifactStorage {
             return written
         } finally {
             if (!moved) Files.deleteIfExists(tmp)
+        }
+    }
+
+    override fun list(prefix: String): List<StorageEntry> {
+        val dir = resolve(prefix)
+        if (!Files.isDirectory(dir)) return emptyList()
+        Files.list(dir).use { stream ->
+            return stream
+                .filter { !it.name.startsWith(".relikquary-") }
+                .map { path ->
+                    if (Files.isDirectory(path)) {
+                        StorageEntry(name = path.name, isDirectory = true)
+                    } else {
+                        StorageEntry(path.name, false, Files.size(path), Files.getLastModifiedTime(path).toInstant())
+                    }
+                }
+                .sorted(compareBy({ !it.isDirectory }, { it.name }))
+                .toList()
+        }
+    }
+
+    override fun delete(key: String): Boolean {
+        val path = resolve(key)
+        if (!Files.isRegularFile(path)) return false
+        Files.delete(path)
+        pruneEmptyParents(path.parent)
+        return true
+    }
+
+    override fun deletePrefix(prefix: String): Int {
+        val dir = resolve(prefix)
+        if (!Files.isDirectory(dir)) return 0
+        var count = 0
+        Files.walk(dir).use { stream ->
+            stream.sorted(Comparator.reverseOrder()).forEach { path ->
+                if (Files.isRegularFile(path)) count++
+                Files.delete(path)
+            }
+        }
+        pruneEmptyParents(dir.parent)
+        return count
+    }
+
+    /** Removes now-empty directories up toward (but not including) the storage root. */
+    private fun pruneEmptyParents(start: Path?) {
+        var current = start
+        while (current != null && current != root && current.startsWith(root)) {
+            val isEmpty = Files.isDirectory(current) && Files.list(current).use { !it.findFirst().isPresent }
+            if (!isEmpty) break
+            Files.delete(current)
+            current = current.parent
         }
     }
 }

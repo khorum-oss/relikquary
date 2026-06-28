@@ -53,6 +53,25 @@ class S3RoundTripTest {
         assertNull(store.openRead("com/example/missing/9.9.9/missing-9.9.9.jar"))
     }
 
+    @Test
+    fun `lists folders and files then deletes a prefix`() {
+        val store = storage()
+        store.write("releases/com/example/lib/1.0.0/lib-1.0.0.jar", byteArrayOf(1, 2, 3).inputStream())
+        store.write("releases/com/example/lib/1.0.0/lib-1.0.0.pom", byteArrayOf(4, 5).inputStream())
+        store.write("releases/com/example/lib/2.0.0/lib-2.0.0.jar", byteArrayOf(6).inputStream())
+
+        val versions = store.list("releases/com/example/lib").filter { it.isDirectory }.map { it.name }
+        org.junit.jupiter.api.Assertions.assertEquals(listOf("1.0.0", "2.0.0"), versions.sorted())
+
+        val files = store.list("releases/com/example/lib/1.0.0")
+        org.junit.jupiter.api.Assertions.assertEquals(setOf("lib-1.0.0.jar", "lib-1.0.0.pom"), files.map { it.name }.toSet())
+        assertTrue(files.all { !it.isDirectory && it.sizeBytes != null })
+
+        org.junit.jupiter.api.Assertions.assertEquals(2, store.deletePrefix("releases/com/example/lib/1.0.0"))
+        assertFalse(store.exists("releases/com/example/lib/1.0.0/lib-1.0.0.jar"))
+        assertTrue(store.exists("releases/com/example/lib/2.0.0/lib-2.0.0.jar"))
+    }
+
     companion object {
         private const val BUCKET = "relikquary"
         private lateinit var process: Process
