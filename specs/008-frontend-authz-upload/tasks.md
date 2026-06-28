@@ -19,9 +19,11 @@ the spec/clarifications). All paths under `frontend/` unless noted. Frontend-onl
   (key `relikquary.auth`) with `login(user, pass)`, `logout()`, `current()`, and `authHeader()`; hydrate
   on load, persist on login, clear on logout.
 - [ ] T003 Update `frontend/src/lib/api.ts`: throw `ApiError extends Error { status }` on non-OK; attach
-  `authHeader()` to every request; add `kind: string` to `RepositorySummary`; make `deleteEntry(repo,
-  path)` use the session (drop the explicit auth arg); add `download(repo, path): Promise<Blob>`
-  (credentialed fetch) and `upload(repo, path, file): Promise<number>` (`PUT /{repo}/{path}` raw bytes).
+  `authHeader()` to every request; add `kind: string` to `RepositorySummary` (alongside the existing
+  `type` — comment that `type` is the hosted acceptance policy and `kind` is hosted/proxy/group); make
+  `deleteEntry(repo, path)` use the session (drop the explicit auth arg), keeping its existing
+  `DELETE /api/repositories/{repo}/{path}` path; add `download(repo, path): Promise<Blob>` (credentialed
+  fetch) and `upload(repo, path, file): Promise<number>` (`PUT /{repo}/{path}` raw bytes).
 
 **Checkpoint**: the session store and a credential-aware, typed API client exist; the app still builds.
 
@@ -110,7 +112,9 @@ states without the full app or a live backend.
   private repo → upload a file → see it listed → delete it; assert a `403`/forbidden message for a
   non-permitted action.
 - [ ] T018 Run `npm run check`, `npm run build`, `npm run build-storybook`, and `bash scripts/e2e.sh` —
-  all green; commit & push to `claude/spec-008-frontend-authz-upload`.
+  all green; confirm the bundled `/ui` build is unaffected (`./gradlew :backend:bootJar -PbundleFrontend`
+  still produces a working `/ui`, FR-010, since no bundling config is touched); commit & push to
+  `claude/spec-008-frontend-authz-upload`.
 
 ## Dependencies
 
