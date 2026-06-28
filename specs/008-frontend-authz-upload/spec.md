@@ -12,6 +12,19 @@
 keep anonymous browsing of open repos working with optional bundling. Plus: add Storybook so the UI's
 reusable components are catalogued and reusable."
 
+## Clarifications
+
+### Session 2026-06-28
+
+- Q: How are the logged-in user's credentials held? → A: In session storage — they survive a page
+  reload within the tab but clear when the tab/window closes; no cross-restart "remember me".
+- Q: What is the upload form? → A: Pick a file and confirm a target path within the current hosted repo
+  (prefilled from the folder being browsed); a single PUT of the raw bytes. No guided coordinate form,
+  no bulk upload.
+- Q: How are the new flows verified? → A: Extend the real-browser Playwright e2e (login → browse a
+  private repo → upload → see the file → delete) against a live backend, plus a check that the Storybook
+  build renders the components.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See and distinguish repository kinds (Priority: P1)
@@ -138,8 +151,9 @@ with its key states (e.g. a repository row for each kind; an error state; a load
   message and MUST NOT prompt for login.
 - **FR-006**: Open repositories MUST remain browsable and downloadable with no login (backward
   compatible).
-- **FR-007**: The UI MUST let an authorized user upload a file to a target path within a hosted
-  repository, using their credentials; on success the listing MUST refresh to show the new file.
+- **FR-007**: The UI MUST let an authorized user upload a single selected file to a target path within a
+  hosted repository (the path prefilled from the folder being browsed and confirmable), using their
+  credentials; on success the listing MUST refresh to show the new file.
 - **FR-008**: Upload and delete MUST surface backend outcomes clearly: success, `401` (not logged in),
   `403` (not permitted), and `409` (immutable release conflict).
 - **FR-009**: Upload MUST NOT be offered for proxy or group repositories.
@@ -175,14 +189,14 @@ with its key states (e.g. a repository row for each kind; an error state; a load
 
 ## Assumptions
 
-- **Credential handling**: credentials are kept for the active browser session only (no long-lived
-  persistence) and sent via the existing HTTP Basic mechanism the backend already accepts; "log in" is a
-  client-side affordance (the backend remains stateless). (Persistence model to confirm in
-  `/speckit-clarify`.)
-- **Upload shape**: a single file is uploaded to a user-specified target path within a hosted repository
-  (the UI does not synthesize POMs, checksums, or `maven-metadata.xml`; it writes the bytes the user
-  provides, like any other `PUT`). Bulk/multi-file upload is out of scope. (To confirm in
-  `/speckit-clarify`.)
+- **Credential handling**: credentials are kept in session storage — surviving a page reload within the
+  tab but cleared when the tab/window closes (no cross-restart persistence) — and sent via the existing
+  HTTP Basic mechanism the backend already accepts; "log in" is a client-side affordance (the backend
+  remains stateless).
+- **Upload shape**: a single file is uploaded to a user-confirmed target path within a hosted repository
+  (prefilled from the folder being browsed); the UI does not synthesize POMs, checksums, or
+  `maven-metadata.xml` — it writes the bytes the user provides, like any other `PUT`. Guided coordinate
+  forms and bulk/multi-file upload are out of scope.
 - **Component catalog tool**: Storybook is used for the component catalog (as requested), kept as a
   dev-only tool that does not ship in the bundled app.
 - **Group presentation**: a group is shown as an aggregate label/summary; resolving/merging a group's
