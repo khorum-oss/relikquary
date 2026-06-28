@@ -14,6 +14,19 @@ a scrapeable format. Structured per-request log line (method, repo, path, status
 principal). Sensitive operational data requires operator auth; probes do not. Configurable, safe
 defaults; Maven contract and publish/resolve/auth unchanged; works on both storage backends."
 
+## Clarifications
+
+### Session 2026-06-28
+
+- Q: How should metrics be exposed for scraping? → A: A dedicated Prometheus-format scrape endpoint
+  (introduces a new metrics-exposition dependency, added through the project's dependency-verification
+  process).
+- Q: Should the per-request structured (JSON) log line be on by default? → A: Opt-in — off by default;
+  operators enable it via configuration. Default console output stays human-friendly.
+- Q: Beyond liveness/readiness probes, which operational endpoints are public vs operator-gated? → A:
+  Only the liveness and readiness probes are public; every other operational endpoint (detailed/component
+  health, metrics, info, env, etc.) requires operator authorization when security is enabled.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Health & readiness for orchestrators (Priority: P1)
@@ -90,8 +103,9 @@ documented fields populated; an authenticated request includes the principal, an
 
 - **Probe auth**: liveness and readiness probes never require credentials (orchestrators can't
   authenticate); sensitive operational data must not leak through them.
-- **Operator-only data**: detailed health and metrics require operator authorization when security is
-  enabled (`401`/`403` otherwise); when security is disabled, they are open (local-dev parity).
+- **Operator-only data**: every operational endpoint except the liveness/readiness probes (detailed
+  health, metrics, info, env, etc.) requires operator authorization when security is enabled (`401`/`403`
+  otherwise); when security is disabled, they are open (local-dev parity).
 - **Upstream outage isolation**: a proxy upstream being unreachable degrades the health view but never
   fails liveness/readiness.
 - **No secret leakage**: storage credentials, upstream credentials, and user passwords are never exposed
@@ -111,14 +125,17 @@ documented fields populated; an authenticated request includes the principal, an
 - **FR-003**: A health view MUST report component health including the active storage backend and proxy
   upstream reachability; an unreachable proxy upstream MUST be reported as degraded but MUST NOT cause
   liveness or readiness to fail.
-- **FR-004**: The system MUST expose application metrics in a standard scrapeable format covering: HTTP
-  request rate, latency, and error rate; publish and resolve counts; proxy cache hit vs miss and upstream
-  fetch outcomes; cleanup items-removed and bytes-reclaimed; and storage usage.
-- **FR-005**: The system MUST emit one structured, machine-parseable log line per request including the
-  method, repository, path, status, response size, duration, and the authenticated principal when present.
-- **FR-006**: Sensitive operational data (detailed health, metrics) MUST require operator authorization
-  when security is enabled (`401` unauthenticated, `403` authenticated-without-role); liveness/readiness
-  probes MUST remain unauthenticated; when security is disabled, all are open.
+- **FR-004**: The system MUST expose application metrics on a dedicated Prometheus-format scrape endpoint
+  covering: HTTP request rate, latency, and error rate; publish and resolve counts; proxy cache hit vs
+  miss and upstream fetch outcomes; cleanup items-removed and bytes-reclaimed; and storage usage.
+- **FR-005**: The system MUST be able to emit one structured, machine-parseable (JSON) log line per
+  request including the method, repository, path, status, response size, duration, and the authenticated
+  principal when present. This structured request log is OFF by default and enabled via configuration;
+  when off, normal application logging is unchanged.
+- **FR-006**: Every operational endpoint other than the liveness and readiness probes (detailed/component
+  health, metrics, info, env, etc.) MUST require operator authorization when security is enabled (`401`
+  unauthenticated, `403` authenticated-without-role); the liveness and readiness probes MUST remain
+  unauthenticated; when security is disabled, all are open.
 - **FR-007**: Observability features MUST be configurable with safe defaults, and enabling/disabling them
   MUST NOT change publish/resolve/auth behavior or the Maven client contract.
 - **FR-008**: Health and metrics MUST behave consistently across the filesystem and S3 storage backends
@@ -155,12 +172,11 @@ documented fields populated; an authenticated request includes the principal, an
 - **Operational surface**: operational endpoints live under a dedicated management path, separate from the
   Maven protocol (`/{repo}/**`) and the `/api` browse surface, so they don't collide with repository
   names or the wire protocol.
-- **Metrics format**: metrics are exposed in a standard scrape (pull) format for a monitoring system to
-  collect. (Exact format — a Prometheus endpoint vs the generic metrics surface — to confirm in
-  `/speckit-clarify`.)
-- **Structured logging**: the per-request log is emitted to standard output in a machine-parseable format
-  (e.g. JSON); whether it is on by default and the exact format are configurable. (To confirm in
-  `/speckit-clarify`.)
+- **Metrics format**: metrics are exposed in Prometheus scrape (pull) format on a dedicated endpoint for a
+  monitoring system to collect (resolved in clarification; introduces a metrics-exposition dependency
+  added through the project's dependency-verification process).
+- **Structured logging**: the per-request log is emitted to standard output in a machine-parseable (JSON)
+  format; it is OFF by default and turned on via configuration (resolved in clarification).
 - **Probe semantics**: liveness = the process is healthy; readiness = the instance can serve (storage
   reachable). Proxy upstream reachability is informational in the health view, not a readiness gate.
 - **Authorization**: operator authorization for sensitive operational data reuses the existing `PUBLISH`

@@ -26,7 +26,9 @@
 
 ## Notes
 
-- Ready for `/speckit-clarify`. Three decisions were defaulted and should be confirmed: (1) **metrics
-  scrape format** — a Prometheus endpoint (new dependency) vs the generic metrics surface; (2)
-  **structured-log default/format** — on-by-default vs opt-in, and which JSON schema; (3) **which
-  operational endpoints are public** vs operator-gated beyond liveness/readiness.
+- `/speckit-clarify` complete (Session 2026-06-28). Three decisions resolved: (1) **metrics scrape
+  format** → a dedicated **Prometheus-format endpoint** (introduces a metrics-exposition dependency added
+  through dependency verification); (2) **structured-log default** → **opt-in, off by default**, JSON to
+  stdout; (3) **operational-endpoint exposure** → **only liveness/readiness are public**; all other
+  operational endpoints (detailed health, metrics, info, env, …) are operator-gated when security is
+  enabled. Ready for `/speckit-plan`.
