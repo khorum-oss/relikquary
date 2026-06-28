@@ -9,29 +9,29 @@ round-trips). All paths under `backend/src/.../org/khorum/oss/relikquary/`.
 
 ## Phase 1: Setup
 
-- [ ] T001 No new dependencies or scaffolding needed (JDK `HttpClient`/`HttpServer` only) — confirm
+- [X] T001 No new dependencies or scaffolding needed (JDK `HttpClient`/`HttpServer` only) — confirm
   `gradle/verification-metadata.xml` stays untouched and create the `proxy/` package directory under
   `backend/src/main/kotlin/org/khorum/oss/relikquary/proxy/`.
 
 ## Phase 2: Foundational (blocking prerequisites for all stories)
 
-- [ ] T002 Add `repository/RepositoryKind.kt` enum `{HOSTED, PROXY, GROUP}`.
-- [ ] T003 Extend `config/RepositoryProperties.kt` `Repo` with `kind: RepositoryKind = HOSTED`,
+- [X] T002 Add `repository/RepositoryKind.kt` enum `{HOSTED, PROXY, GROUP}`.
+- [X] T003 Extend `config/RepositoryProperties.kt` `Repo` with `kind: RepositoryKind = HOSTED`,
   `remoteUrl: String? = null`, `remoteUsername: String? = null`, `remotePassword: String? = null`,
   `members: List<String> = emptyList()` (existing `name`/`type` unchanged).
-- [ ] T004 Add startup validation to `repository/RepositoryRegistry.kt`: PROXY requires non-blank
+- [X] T004 Add startup validation to `repository/RepositoryRegistry.kt`: PROXY requires non-blank
   `remoteUrl`; GROUP requires ≥1 member, all members configured, no self-reference, no nested groups —
   throw on invalid config (context fails to start).
-- [ ] T005 [P] Unit test `unit/RepositoryRegistryTest.kt`: extend with proxy/group validation matrix
+- [X] T005 [P] Unit test `unit/RepositoryRegistryTest.kt`: extend with proxy/group validation matrix
   (valid proxy/group; proxy missing url; group empty/unknown-member/self-ref/nested-group → throws).
-- [ ] T006 Add `repository/RepositoryResolver.kt` with sealed `Resolution { Hit(StoredArtifact), Miss,
+- [X] T006 Add `repository/RepositoryResolver.kt` with sealed `Resolution { Hit(StoredArtifact), Miss,
   UpstreamError }` and `resolve(repoName, path): Resolution`; implement the **HOSTED** branch
   (`storage.openRead("{name}/{path}")`) and wire dispatch on `kind` (PROXY/GROUP branches stubbed to
   `Miss` for now).
-- [ ] T007 Refactor `protocol/RepositoryController.kt`: GET delegates to `RepositoryResolver` and maps
+- [X] T007 Refactor `protocol/RepositoryController.kt`: GET delegates to `RepositoryResolver` and maps
   `Hit`→200 / `Miss`→404 / `UpstreamError`→502; `PUT` to a non-HOSTED repo returns `405` with
   `Allow: GET, HEAD`. Existing hosted publish/resolve behavior unchanged.
-- [ ] T008 [P] Confirm the existing hosted suites still pass after the refactor
+- [X] T008 [P] Confirm the existing hosted suites still pass after the refactor
   (`RepositoryRoutingTest`, `RepositoryHttpTest`, `PublishResolveRoundTripTest`, `BrowseApiTest`) —
   `./gradlew :backend:test`.
 
@@ -46,28 +46,28 @@ without upstream contact; metadata is pass-through; missing→404, upstream erro
 **Independent test**: Resolve an artifact through a proxy on a cold cache (fetched from a stub upstream,
 byte-for-byte), then again with the upstream stopped (served from cache).
 
-- [ ] T009 [US1] Add `proxy/UpstreamClient.kt` over JDK `HttpClient` (with `ProxySelector.getDefault()`,
+- [X] T009 [US1] Add `proxy/UpstreamClient.kt` over JDK `HttpClient` (with `ProxySelector.getDefault()`,
   `followRedirects(Redirect.NORMAL)` so upstream 301/302 — common on Maven Central — resolve rather than
   fail, optional Basic auth from `remoteUsername`/`remotePassword`); `fetch(repo, artifactPath): UpstreamResponse`
   sealed `{ Found(stream, contentLength?), NotFound, Error }` (404/410→NotFound; 200→Found; connect/
   timeout/5xx→Error).
-- [ ] T010 [US1] Implement the **PROXY** branch in `repository/RepositoryResolver.kt`: `maven-metadata.xml`
+- [X] T010 [US1] Implement the **PROXY** branch in `repository/RepositoryResolver.kt`: `maven-metadata.xml`
   → pass-through `UpstreamClient.fetch` (never cached); other paths cache-first — cached⇒`Hit`; else fetch,
   on `Found` `storage.write(cacheKey, body)` then `openRead`⇒`Hit`, `NotFound`⇒`Miss`, `Error`⇒`UpstreamError`.
-- [ ] T011 [P] [US1] Unit test `unit/RepositoryResolverTest.kt`: PROXY dispatch with mocked storage +
+- [X] T011 [P] [US1] Unit test `unit/RepositoryResolverTest.kt`: PROXY dispatch with mocked storage +
   upstream — cache hit (no upstream call), miss→fetch+write→hit, metadata pass-through (no write), NotFound→Miss,
   Error→UpstreamError.
-- [ ] T012 [US1] Add a reusable local stub upstream test helper (JDK `com.sun.net.httpserver.HttpServer`)
+- [X] T012 [US1] Add a reusable local stub upstream test helper (JDK `com.sun.net.httpserver.HttpServer`)
   under `backend/src/test/.../integration/` serving a canned jar/pom/`.sha1`/`maven-metadata.xml`.
-- [ ] T013 [US1] Integration test `integration/ProxyResolveTest.kt` (`@SpringBootTest` + stub upstream via
+- [X] T013 [US1] Integration test `integration/ProxyResolveTest.kt` (`@SpringBootTest` + stub upstream via
   `@DynamicPropertySource`): cache miss→hit (second request served with stub stopped), metadata pass-through,
   unknown coordinate→404, upstream-down on cold miss→502, `PUT`→405.
-- [ ] T014 [US1] Round-trip test `integration/ProxyRoundTripTest.kt`: a real Maven/Gradle client resolves a
+- [X] T014 [US1] Round-trip test `integration/ProxyRoundTripTest.kt`: a real Maven/Gradle client resolves a
   dependency **through the proxy** (stub upstream serving a real artifact), bytes match upstream, cache
   populated, and a second resolve succeeds with the upstream stopped.
-- [ ] T015 [P] [US1] Guarded test `integration/ProxyCentralIT.kt`: proxy pointed at real Maven Central,
+- [X] T015 [P] [US1] Guarded test `integration/ProxyCentralIT.kt`: proxy pointed at real Maven Central,
   auto-skipped offline (reachability probe → `Assumptions.assumeTrue`); resolve a small known artifact.
-- [ ] T016 [US1] Ship the `maven-central` proxy default in `backend/src/main/resources/application.yml`
+- [X] T016 [US1] Ship the `maven-central` proxy default in `backend/src/main/resources/application.yml`
   (`kind: proxy`, `remoteUrl: https://repo1.maven.org/maven2`).
 
 **Checkpoint**: proxy resolve/caching fully works and is independently demonstrable.
@@ -80,15 +80,15 @@ proxy member upstream error with no hit→502; publish→405.
 **Independent test**: Configure a group over a hosted member (+ a proxy member); resolve a first-party
 artifact (hosted) and a third-party dependency (proxy) through the one group URL.
 
-- [ ] T017 [US2] Implement the **GROUP** branch in `repository/RepositoryResolver.kt`: iterate `members`
+- [X] T017 [US2] Implement the **GROUP** branch in `repository/RepositoryResolver.kt`: iterate `members`
   in order, recursively resolve each — first `Hit` returns; `Miss` continues; remember `UpstreamError`;
   after all members, remembered error⇒`UpstreamError` else `Miss`.
-- [ ] T018 [P] [US2] Unit test `unit/RepositoryResolverTest.kt`: GROUP ordering (first member wins),
+- [X] T018 [P] [US2] Unit test `unit/RepositoryResolverTest.kt`: GROUP ordering (first member wins),
   fall-through to a later member, all-miss→Miss, member upstream error with no hit→UpstreamError.
-- [ ] T019 [US2] Integration test `integration/GroupResolveTest.kt`: first-match returns the hosted
+- [X] T019 [US2] Integration test `integration/GroupResolveTest.kt`: first-match returns the hosted
   member's bytes; a path only a proxy member can satisfy resolves (and caches) via that member; absent
   everywhere→404; `PUT`→405.
-- [ ] T020 [US2] Ship the `public` group default in `backend/src/main/resources/application.yml`
+- [X] T020 [US2] Ship the `public` group default in `backend/src/main/resources/application.yml`
   (`kind: group`, `members: [releases, maven-central]`); extend the group round-trip coverage in
   `ProxyRoundTripTest`/`GroupResolveTest` to resolve both a first-party and a proxied dependency through
   the single group URL.
@@ -103,21 +103,21 @@ unchanged.
 **Independent test**: `PUT` to a proxy/group is rejected; the existing hosted round-trip and DELETE auth
 matrix still pass.
 
-- [ ] T021 [US3] Surface `kind` in the browse API: include it in the repository summary returned by
+- [X] T021 [US3] Surface `kind` in the browse API: include it in the repository summary returned by
   `protocol/BrowseController.kt` `GET /api/repositories` (additive); a group's `contents` listing returns
   empty (no backing storage prefix).
-- [ ] T022 [P] [US3] Integration test in `integration/BrowseApiTest.kt`: `GET /api/repositories` reports
+- [X] T022 [P] [US3] Integration test in `integration/BrowseApiTest.kt`: `GET /api/repositories` reports
   `kind` for hosted/proxy/group; a proxy's cached file is browsable; a group's contents listing is empty.
-- [ ] T023 [P] [US3] Confirm the read-only `405` assertions exist for both proxy and group (in
+- [X] T023 [P] [US3] Confirm the read-only `405` assertions exist for both proxy and group (in
   `ProxyResolveTest`/`GroupResolveTest`) and that `AuthPublishTest`/`AuthDisabledTest`/`BrowseDeleteAuthTest`
   still pass unchanged.
 
 ## Phase 6: Polish & cross-cutting
 
-- [ ] T024 [P] Update `README.md` and `specs/006-proxy-group-repos/quickstart.md` references: configuring
+- [X] T024 [P] Update `README.md` and `specs/006-proxy-group-repos/quickstart.md` references: configuring
   proxy/group repos, the shipped `maven-central`/`public` defaults, upstream credentials via env/file, and
   the read-only (405) + cache/metadata semantics.
-- [ ] T025 `./gradlew build` green (detekt zero + Kover + all unit/integration incl. proxy/group
+- [X] T025 `./gradlew build` green (detekt zero + Kover + all unit/integration incl. proxy/group
   round-trips; real-Central IT skips offline; `verification-metadata.xml` untouched); commit & push to
   `claude/spec-006-proxy-repos`.
 
