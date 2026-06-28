@@ -20,7 +20,9 @@ Optional per-repository `retention` block; absent ⇒ the repo is never cleaned 
 - `SnapshotRetention(keepLast: Int?, maxAge: Duration?)` — applies to hosted snapshot/mixed repos.
 - `CacheEviction(maxAge: Duration?, maxSize: DataSize?)` — applies to proxy repos.
 
-Each leaf field is independently optional; a policy may set one or both dimensions.
+Each leaf field is independently optional with **no implicit default**: an absent dimension is simply not
+applied (e.g. `snapshot: {keepLast: 5}` with no `maxAge` enforces only the count). Only the global
+`cleanup` block has defaults (`enabled=false`, `interval=PT1H`).
 
 ## ArtifactStorage.walk (new) — `storage/ArtifactStorage.kt`
 
@@ -67,14 +69,17 @@ builds) are not part of any build and are never selected.
 ## CleanupScheduler (new) — `cleanup/CleanupScheduler.kt`
 
 `@Component`, `@ConditionalOnProperty("relikquary.cleanup.enabled")`,
-`@Scheduled(fixedDelayString="${relikquary.cleanup.interval-ms}")` → `CleanupService.run(dryRun = false)`.
-Requires `@EnableScheduling` on the application.
+`@Scheduled(fixedDelayString="${relikquary.cleanup.interval:PT1H}")` (the property is an ISO-8601
+`Duration`, which `fixedDelayString` accepts directly) → `CleanupService.run(dryRun = false)`. Requires
+`@EnableScheduling` on the application.
 
 ## CleanupController (new) — `protocol/CleanupController.kt`
 
 - `POST /api/cleanup?dryRun={bool}` → `CleanupReport` (JSON). Default `dryRun=false`.
-- Authorization: the feature-007 `RepositoryAuthorizationManager` requires the global `PUBLISH` authority
-  for `/api/cleanup` (open when `security.enabled=false`).
+- Authorization: the feature-007 `RepositoryAuthorizationManager` gains a non-repo-scoped branch — for
+  the path `/api/cleanup` it returns `AuthorizationDecision(auth holds ROLE_PUBLISH)` (a global-authority
+  check, distinct from the per-repo `permits(repo, …)` path, which has no repo here). Open when
+  `security.enabled=false` (the manager is not wired).
 
 ## Status mapping
 

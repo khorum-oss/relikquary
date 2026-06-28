@@ -46,9 +46,10 @@ confirm the 3 newest remain, the 2 oldest are gone, and the artifact still resol
 - [ ] T009 [P] [US1] Unit test `unit/SnapshotRetentionSelectionTest.kt`: keepLast trims oldest; maxAge
   trims expired; keep-newest enforced; metadata/non-timestamped never selected.
 - [ ] T010 [US1] Integration test `integration/SnapshotRetentionTest.kt` (`@SpringBootTest`): PUT 5
-  timestamped builds to a snapshot repo (keepLast=3), run cleanup via the service/endpoint, assert the 2
-  oldest builds' files are gone, the 3 newest remain, `maven-metadata.xml` remains, and a GET of a
-  retained build resolves; a release repo with content is unchanged.
+  timestamped builds to a snapshot repo (keepLast=3), invoke `CleanupService.run(dryRun=false)` directly
+  (the endpoint is built in US3), assert the 2 oldest builds' files are gone, the 3 newest remain,
+  `maven-metadata.xml` remains, and a GET of a retained build resolves; a release repo with content is
+  unchanged (also covers the group/unconfigured no-op selection).
 
 **Checkpoint**: snapshot repositories stay bounded; releases/metadata safe.
 
@@ -83,12 +84,15 @@ matches what was removed; the endpoint requires authorization.
   selected files unless `dryRun`, and aggregate per-repo + total items/bytes; add report DTOs in
   `protocol/dto/CleanupReport.kt`.
 - [ ] T015 [US3] Add `cleanup/CleanupScheduler.kt` (`@ConditionalOnProperty("relikquary.cleanup.enabled")`,
-  `@Scheduled(fixedDelayString="${relikquary.cleanup.interval-ms}")`) calling `run(dryRun=false)`.
+  `@Scheduled(fixedDelayString="${relikquary.cleanup.interval:PT1H}")` — `fixedDelayString` accepts an
+  ISO-8601 `Duration` string, so it binds the `interval` property directly) calling `run(dryRun=false)`.
 - [ ] T016 [US3] Add `protocol/CleanupController.kt` `POST /api/cleanup?dryRun={bool}` returning the
   `CleanupReport`; default `dryRun=false`.
-- [ ] T017 [US3] Extend `security/RepositoryAuthorizationManager.kt` to require the global `PUBLISH`
-  authority for `POST /api/cleanup` (currently non-repo `/api` paths are granted); open when security is
-  disabled.
+- [ ] T017 [US3] Extend `security/RepositoryAuthorizationManager.kt` with a non-repo-scoped branch: before
+  the repo-path parsing, if the request path is `/api/cleanup`, return
+  `AuthorizationDecision(<auth holds ROLE_PUBLISH>)` (reuse a small `RepositoryAuthorizer` helper rather
+  than `permits(repo, …)`, which needs a repo). All other non-repo `/api` paths keep returning grant.
+  Open when security is disabled (manager not wired).
 - [ ] T018 [P] [US3] Integration test `integration/CleanupAuthTest.kt`: `POST /api/cleanup` unauthenticated
   → 401, authenticated non-publisher → 403, publisher → 200; a `dryRun=true` run reports a non-empty
   selection but leaves storage byte-for-byte unchanged; security disabled ⇒ open.
