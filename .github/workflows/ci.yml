@@ -26,35 +26,8 @@ jobs:
           java-version: '21'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          # A stale Kotlin incremental-compilation state in the restored Gradle home cache re-emitted an
-          # orphaned protocol.RequestLoggingFilter class (a since-moved source) onto the classpath, failing
-          # RequestLogTest with a duplicate-bean conflict. Compile from a clean Gradle home each run.
-          cache-disabled: true
-      - name: Diagnose checked-out source (pre-build)
-        run: |
-          echo "HEAD=$(git rev-parse HEAD)"
-          echo "=== git status (untracked/dirty?) ==="; git status --short || true
-          echo "=== source files matching RequestLoggingFilter (on disk) ==="
-          find backend/src -name '*RequestLoggingFilter*' 2>/dev/null || true
-          echo "=== protocol package dir on disk ==="; ls -la backend/src/main/kotlin/org/khorum/oss/relikquary/protocol/ || true
-          echo "=== package decl of the observability filter ==="; head -1 backend/src/main/kotlin/org/khorum/oss/relikquary/observability/logging/RequestLoggingFilter.kt || true
-          echo "=== git-tracked sources matching RequestLoggingFilter ==="; git ls-files | grep -i RequestLoggingFilter || true
       - name: Build (compile, detekt, tests, coverage, dependency verification)
-        run: ./gradlew :backend:build --no-daemon --stacktrace --no-build-cache
-      - name: Diagnose duplicate RequestLoggingFilter on the classpath
-        if: always()
-        run: |
-          echo "=== .class files under the workspace ==="
-          find . -name 'RequestLoggingFilter*.class' 2>/dev/null || true
-          echo "=== .class files under GRADLE_USER_HOME (~/.gradle) ==="
-          find "$HOME/.gradle" -name 'RequestLoggingFilter*.class' 2>/dev/null | head -40 || true
-          echo "=== RequestLoggingFilter inside built jars ==="
-          for j in backend/build/libs/*.jar; do [ -f "$j" ] && { echo "-- $j"; unzip -l "$j" 2>/dev/null | grep -i RequestLoggingFilter || true; }; done
-          echo "=== bytecode FQN of each found class (via javap) ==="
-          find . "$HOME/.gradle" -name 'RequestLoggingFilter.class' 2>/dev/null | while read -r c; do
-            d=$(dirname "$c"); root=${d%/org/khorum*}; echo "-- $c"; (cd "$root" && javap -classpath . org.khorum.oss.relikquary.protocol.RequestLoggingFilter 2>/dev/null | head -1) || true
-          done
+        run: ./gradlew :backend:build --no-daemon --stacktrace
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -99,18 +72,13 @@ jobs:
           java-version: '21'
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          # A stale Kotlin incremental-compilation state in the restored Gradle home cache re-emitted an
-          # orphaned protocol.RequestLoggingFilter class (a since-moved source) onto the classpath, failing
-          # RequestLogTest with a duplicate-bean conflict. Compile from a clean Gradle home each run.
-          cache-disabled: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Build backend bootJar
-        run: ./gradlew :backend:bootJar --no-daemon --stacktrace --no-build-cache
+        run: ./gradlew :backend:bootJar --no-daemon --stacktrace
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
