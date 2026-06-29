@@ -12,3 +12,12 @@ relikquary:
 
 server:
   port: 8081
+
+logging:
+  level:
+    # Verbose logging for local sandbox debugging: app DEBUG logs request arrival (the filter's "-->"
+    # line) plus controller detail. Uncomment the Spring lines to trace why a request 404s (web) or is
+    # rejected 401/403 (security) — e.g. when a proxied request "isn't coming through".
+    org.khorum.oss.relikquary: DEBUG
+    # org.springframework.web: DEBUG
+    # org.springframework.security: DEBUG
