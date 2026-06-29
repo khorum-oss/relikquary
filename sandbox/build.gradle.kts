@@ -22,7 +22,19 @@ kotlin {
 }
 
 repositories {
-    mavenCentral()
+    // Resolve this app's dependencies THROUGH the running relikquary so they exercise its proxy/cache.
+    // Use the `public` group repo (releases + the maven-central proxy) — NOT `snapshots`, which is a
+    // plain store with no upstream and would 404 every transitive dependency. Port 8081 = sandbox profile.
+    maven {
+        name = "relikquary-public"
+        url = uri("http://localhost:8081/public")
+        isAllowInsecureProtocol = true
+    }
+    maven {
+        name = "relikquary-snapshots"
+        url = uri("http://localhost:8081/snapshots")
+        isAllowInsecureProtocol = true
+    }
 }
 
 dependencies {

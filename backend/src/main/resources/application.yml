@@ -130,3 +130,10 @@ spring:
     multipart:
       # Artifacts are streamed as raw request bodies, not multipart form uploads.
       enabled: false
+
+logging:
+  level:
+    # RequestLoggingFilter logs one INFO line per request (status, method, URI, timing). Raise the app
+    # package to DEBUG (see the 'sandbox'/'local' profiles) to also log request arrival and controller
+    # detail; raise org.springframework.web / .security to DEBUG to trace dispatch, mapping, and auth.
+    org.khorum.oss.relikquary: INFO
