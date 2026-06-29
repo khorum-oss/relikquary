@@ -31,6 +31,19 @@ jobs:
         # cached compile output, so no orphaned class from a since-moved source file lands on the
         # classpath (a stale build-cache entry once caused a duplicate-bean ConflictingBeanDefinition).
         run: ./gradlew :backend:build --no-daemon --stacktrace --no-build-cache
+      - name: Diagnose duplicate RequestLoggingFilter on the classpath
+        if: always()
+        run: |
+          echo "=== .class files under the workspace ==="
+          find . -name 'RequestLoggingFilter*.class' 2>/dev/null || true
+          echo "=== .class files under GRADLE_USER_HOME (~/.gradle) ==="
+          find "$HOME/.gradle" -name 'RequestLoggingFilter*.class' 2>/dev/null | head -40 || true
+          echo "=== RequestLoggingFilter inside built jars ==="
+          for j in backend/build/libs/*.jar; do [ -f "$j" ] && { echo "-- $j"; unzip -l "$j" 2>/dev/null | grep -i RequestLoggingFilter || true; }; done
+          echo "=== bytecode FQN of each found class (via javap) ==="
+          find . "$HOME/.gradle" -name 'RequestLoggingFilter.class' 2>/dev/null | while read -r c; do
+            d=$(dirname "$c"); root=${d%/org/khorum*}; echo "-- $c"; (cd "$root" && javap -classpath . org.khorum.oss.relikquary.protocol.RequestLoggingFilter 2>/dev/null | head -1) || true
+          done
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
