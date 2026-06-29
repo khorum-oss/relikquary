@@ -22,7 +22,11 @@ kotlin {
 }
 
 repositories {
-    mavenCentral()
+    maven {
+        name = "relikquary"
+        url = uri("http://localhost:8081/snapshots")
+        isAllowInsecureProtocol = true
+    }
 }
 
 dependencies {
