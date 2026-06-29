@@ -27,7 +27,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Build (compile, detekt, tests, coverage, dependency verification)
-        run: ./gradlew :backend:build --no-daemon --stacktrace
+        # --no-build-cache: compile from the clean checkout rather than restoring a (possibly stale)
+        # cached compile output, so no orphaned class from a since-moved source file lands on the
+        # classpath (a stale build-cache entry once caused a duplicate-bean ConflictingBeanDefinition).
+        run: ./gradlew :backend:build --no-daemon --stacktrace --no-build-cache
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -78,7 +81,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Build backend bootJar
-        run: ./gradlew :backend:bootJar --no-daemon --stacktrace
+        run: ./gradlew :backend:bootJar --no-daemon --stacktrace --no-build-cache
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
