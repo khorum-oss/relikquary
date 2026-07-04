@@ -97,6 +97,12 @@ class ProxyStreamingCacheIT {
         assertEquals(200, first.statusCode())
         assertArrayEquals(bytes, first.body())
 
+        // The tee commits the cache just after the response completes; wait for it before dropping the
+        // artifact upstream, so the second request is genuinely served from cache (not a race).
+        val key = "maven-central/$coord"
+        val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+        while (!storage.exists(key) && System.nanoTime() < deadline) Thread.sleep(50)
+
         // Drop it upstream: only a real cache entry can satisfy the second request byte-identically.
         stub.remove(coord)
         val second = getBytes("/maven-central/$coord")
@@ -175,7 +181,12 @@ class ProxyStreamingCacheIT {
 
         assertEquals(200, getBytes("/maven-central/$coord").statusCode())
 
-        val cached = (storage as CountingStorage).openRead("maven-central/$coord")
+        // The tee commits the cache on the server just after the response completes, so poll briefly
+        // rather than opening it the instant getBytes() returns (the check can otherwise race the commit).
+        val key = "maven-central/$coord"
+        val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+        while (!storage.exists(key) && System.nanoTime() < deadline) Thread.sleep(50)
+        val cached = (storage as CountingStorage).openRead(key)
         assertTrue(cached != null)
         assertArrayEquals(bytes, cached!!.stream.use { it.readBytes() })
     }

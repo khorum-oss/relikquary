@@ -54,6 +54,9 @@ Then open **http://localhost:8081**, click around the sidebar, and try refreshin
 
 ```bash
 docker compose -f deploy/docker-compose.dev.yml down       # stop, keep data
+```
+
+```bash
 docker compose -f deploy/docker-compose.dev.yml down -v     # stop and wipe the volumes (fresh start)
 ```
 
@@ -78,6 +81,9 @@ Once you see **`Configuration complete; ready for start up`** and worker process
 
 ```bash
 docker compose -f deploy/docker-compose.dev.yml logs -f frontend   # or backend / postgres
+```
+
+```bash
 docker compose -f deploy/docker-compose.dev.yml build frontend     # surfaces build errors on their own
 ```
 
@@ -112,7 +118,9 @@ cd frontend && npm install && npm run dev                           # http://loc
 | `frontend.Dockerfile` | UI image (SvelteKit SPA on non-root nginx; proxies API/repo paths to the backend) |
 | `combined.Dockerfile` | Single image serving API + UI (UI under `/ui`) |
 | `nginx/default.conf.template` | Frontend reverse-proxy config (`${RELIKQUARY_BACKEND}`) |
-| `k8s/relikquary.yaml` | Kubernetes manifest (backend + frontend + PostgreSQL) starting point |
+| `k8s/relikquary.yaml` | Kubernetes manifest (backend + frontend + PostgreSQL) starting point, **auth on** |
+| `k8s/relikquary-dev.yaml` | **Local dev** Kubernetes manifest — the k8s counterpart of `docker-compose.dev.yml`: auth off, throwaway creds, NodePort access, self-contained in the `relikquary-dev` namespace |
+| `dev-k8s.sh` | Helper for the dev k8s stack: `build` / `up` / `restart` / `status` / `down` / `deploy` |
 | `smoke.sh` | Docker-guarded build + publish/resolve smoke test |
 
 ## Build the images
@@ -122,7 +130,13 @@ from the repository root:
 
 ```bash
 ./gradlew dockerBuildSplit      # backend + frontend (relikquary-backend:local, relikquary-frontend:local)
+```
+
+```bash
 ./gradlew dockerBuildCombined   # combined API+UI (relikquary:local)
+```
+
+```bash
 ./gradlew dockerBuildBackend    # just one
 ```
 
@@ -183,6 +197,98 @@ the ConfigMap/Secret; an init container makes the backend wait for the database 
 `RELIKQUARY_DB_PASSWORD` Secret (shared by Postgres and the backend) before applying. To use embedded
 SQLite instead (single replica), set `RELIKQUARY_PERSISTENCE_BACKEND=sqlite` and `RELIKQUARY_DB_PATH` to a
 path on the data PVC in the ConfigMap, and delete the three `relikquary-postgres*` resources.
+
+### Local dev cluster (auth off)
+
+For a throwaway stack on a local cluster (Docker Desktop, kind, minikube, k3d) — the k8s equivalent of
+`docker-compose.dev.yml` — use `k8s/relikquary-dev.yaml`. It declares and scopes everything to the
+`relikquary-dev` namespace, disables auth, and ships a throwaway Postgres password. External access:
+
+- **API / Maven repos → fixed `http://localhost:8081`** (a `LoadBalancer` service — on Docker Desktop
+  it binds `localhost:8081`, so build/client config can rely on it). A NodePort can't be 8081 (k8s
+  restricts NodePorts to 30000–32767), hence LoadBalancer.
+- **UI → a random NodePort** (auto-assigned, so nothing collides). `dev-k8s.sh` prints it on every run,
+  or check it with `status`.
+
+> On plain **kind/minikube** the LoadBalancer stays `<pending>`, but the API is also on a **fixed
+> NodePort `30081`** — reach it at `http://<node-ip>:30081` (`kubectl get nodes -o wide` for the IP;
+> kind can map it to localhost via `extraPortMappings`). Or, for a clean `localhost:8081` on any
+> cluster: `kubectl -n relikquary-dev port-forward svc/relikquary-backend 8081:8081`.
+>
+> **k3d**: `dev-k8s.sh build`/`deploy` auto-imports the images into the cluster (`k3d image import`) —
+> k3d nodes have their own image store, so host-built `:local` images aren't visible otherwise. For a
+> host-bound `localhost:8081`, create the cluster with the LoadBalancer port mapped, e.g.
+> `k3d cluster create dev -p '8081:8081@loadbalancer'`; otherwise use the port-forward above.
+
+**Easiest — the `dev-k8s.sh` helper.** Build + apply + roll + status in one shot:
+
+```bash
+deploy/dev-k8s.sh deploy
+```
+
+Or the individual subcommands:
+
+```bash
+deploy/dev-k8s.sh status
+```
+
+```bash
+deploy/dev-k8s.sh restart
+```
+
+```bash
+deploy/dev-k8s.sh up
+```
+
+```bash
+deploy/dev-k8s.sh down
+```
+
+`status` prints pods + URLs; `restart` rolls the deployments to pick up rebuilt images; `up` applies
+without rebuilding; `down` deletes the namespace.
+
+> **The `:local`-tag gotcha:** `kubectl apply` after a rebuild does **not** restart pods — the image
+> tag is unchanged, so k8s sees no diff. After rebuilding, run `deploy/dev-k8s.sh restart` (or the
+> all-in-one `deploy`) to actually roll the new image in. This is the usual "I rebuilt but nothing
+> changed" surprise.
+
+**Gradle equivalents** (apply-only — they do *not* build or roll):
+
+```bash
+./gradlew k8sDeployDev
+```
+
+```bash
+./gradlew k8sDeleteDev
+```
+
+**Or run the steps yourself** — build both images, apply, and show the node ports:
+
+```bash
+docker build -f deploy/backend.Dockerfile  -t relikquary-backend:local  .
+docker build -f deploy/frontend.Dockerfile -t relikquary-frontend:local .
+kubectl apply -f deploy/k8s/relikquary-dev.yaml
+kubectl -n relikquary-dev get svc      # API on :8081 (LoadBalancer); UI on 8080:<random-nodePort>/TCP
+```
+
+Not on Docker Desktop (which shares the local image store)? Load the images into the cluster first —
+`kind load docker-image relikquary-backend:local relikquary-frontend:local`, or
+`minikube image load relikquary-backend:local relikquary-frontend:local`.
+
+The **UI** is the only random port. For a stable UI URL, port-forward it (pick any free local port):
+
+```bash
+kubectl -n relikquary-dev port-forward svc/relikquary-frontend 8082:8080
+```
+
+The API is already fixed at `localhost:8081` via the LoadBalancer. Only port-forward it if that service
+shows `<pending>` (plain kind/minikube without a LB provider):
+
+```bash
+kubectl -n relikquary-dev port-forward svc/relikquary-backend 8081:8081
+```
+
+> ⚠️ Auth is **disabled** and credentials are throwaway — for local development only, never expose it.
 
 ## Storage backends (filesystem ↔ S3)
 

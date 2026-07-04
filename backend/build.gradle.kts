@@ -64,13 +64,28 @@ detekt {
     config.setFrom(rootProject.layout.projectDirectory.file("config/detekt/detekt.yml"))
 }
 
+// Locate the Maven executable for the real-client round-trip tests. MAVEN_EXECUTABLE wins when set
+// (CI sets it); otherwise search PATH and the common install locations and use the absolute path, so a
+// plain `./gradlew test` works out of the box wherever Maven is installed (rather than assuming a
+// single hard-coded path). Falls back to a bare "mvn" as a last resort.
+fun resolveMavenExecutable(): String {
+    System.getenv("MAVEN_EXECUTABLE")?.takeIf { it.isNotBlank() }?.let { return it }
+    val dirs = (System.getenv("PATH") ?: "").split(File.pathSeparatorChar) +
+        listOf("/opt/homebrew/bin", "/usr/local/bin", "/opt/maven/bin", "/usr/bin", "/bin")
+    return dirs.asSequence()
+        .map { File(it, "mvn") }
+        .firstOrNull { it.canExecute() }
+        ?.absolutePath
+        ?: "mvn"
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Real-client round-trip tests drive the repo's Gradle wrapper and the system Maven via
     // external processes (keeping gradle-api/maven libs off the test classpath).
     systemProperty("relikquary.rootProjectDir", rootProject.layout.projectDirectory.asFile.absolutePath)
-    systemProperty("relikquary.mavenExecutable", System.getenv("MAVEN_EXECUTABLE") ?: "/opt/maven/bin/mvn")
+    systemProperty("relikquary.mavenExecutable", resolveMavenExecutable())
     // Keep the default (SQLite) persistence backend's database file inside the build directory during
     // tests, so the JPA datasource every @SpringBootTest now boots never writes into the source tree.
     systemProperty(
