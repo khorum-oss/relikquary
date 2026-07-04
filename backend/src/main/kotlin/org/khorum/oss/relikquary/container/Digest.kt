@@ -27,6 +27,8 @@ value class Digest private constructor(val value: String) {
         private val HEX = Regex("[0-9a-f]{$HEX_LENGTH}")
 
         /** Parses `sha256:<64 lowercase hex>`, throwing [InvalidDigestException] on any other shape. */
+        // Guard-style validator: each malformed shape is rejected with its own message (multi-throw allowed).
+        @Suppress("ThrowsCount")
         fun parse(raw: String): Digest {
             val trimmed = raw.trim()
             val (algo, hex) = trimmed.split(':', limit = 2).let {
