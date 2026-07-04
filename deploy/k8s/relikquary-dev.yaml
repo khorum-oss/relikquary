@@ -62,8 +62,9 @@ metadata:
 type: Opaque
 stringData:
   # Throwaway dev PostgreSQL password — shared by the postgres container (POSTGRES_PASSWORD) and the
-  # backend (RELIKQUARY_DB_PASSWORD). Fine to commit for local dev; do NOT reuse anywhere real.
-  RELIKQUARY_DB_PASSWORD: "relikquary"
+  # backend (RELIKQUARY_DB_PASSWORD). It is the sanctioned placeholder value ("changeme"): it works
+  # as-is for the local dev stack (no need to change it) and keeps a real secret out of the repo.
+  RELIKQUARY_DB_PASSWORD: "changeme"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

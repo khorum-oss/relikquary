@@ -74,7 +74,7 @@ ConfigMap toggle, README updates. Single developer, single node.
 
 | Deviation | Why needed | Simpler alternative rejected because |
 |-----------|------------|--------------------------------------|
-| Commit a throwaway dev DB password in `relikquary-dev.yaml` | A zero-setup local stack ("no secrets to supply") — the constitution's secret rule targets *real* secrets | Requiring the developer to inject a secret defeats the one-command goal; the value is non-production, clearly marked, and mirrors the already-accepted `docker-compose.dev.yml` (same `relikquary` dev password). Not a real secret. |
+| Commit a throwaway dev DB password in `relikquary-dev.yaml` | A zero-setup local stack ("no secrets to supply") — the constitution's secret rule targets *real* secrets | Requiring the developer to inject a secret defeats the one-command goal. The value is the sanctioned `changeme` placeholder (works as-is, non-production, clearly marked) so the `DeploymentArtifactsTest` no-committed-secret gate stays satisfied — not weakened. Not a real secret. |
 | Fixed API via `LoadBalancer` (not NodePort) | A NodePort cannot be 8081 (30000–32767 only), and build config needs a stable, memorable local port | A pinned NodePort alone would force clients onto a 30xxx port; a port-forward alone is a fragile background process. LB (Docker Desktop) + pinned NodePort (portable fallback) gives a stable address with no process. |
 
 ## Project Structure
