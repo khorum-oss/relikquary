@@ -28,9 +28,9 @@ Abbrev: `.../` = `backend/src/main/kotlin/org/khorum/oss/relikquary/`; `test/...
 
 **Purpose**: The orthogonal `format` axis and version bump that everything else builds on.
 
-- [ ] T001 [P] Add `RepositoryFormat` enum (`MAVEN` | `CONTAINER`) in `.../repository/RepositoryFormat.kt`
-- [ ] T002 [P] Add `format: RepositoryFormat = RepositoryFormat.MAVEN` to `RepositoryProperties.Repo` in `.../config/RepositoryProperties.kt` (KDoc: selects Maven layout vs OCI/Docker V2; container reuses `kind`, `remoteUrl`, `remoteUsername/Password`, `access`; `type` ignored for CONTAINER)
-- [ ] T003 [P] Bump `VERSION` from `1.0.0` to `1.1.0` (additive capability)
+- [x] T001 [P] Add `RepositoryFormat` enum (`MAVEN` | `CONTAINER`) in `.../repository/RepositoryFormat.kt`
+- [x] T002 [P] Add `format: RepositoryFormat = RepositoryFormat.MAVEN` to `RepositoryProperties.Repo` in `.../config/RepositoryProperties.kt` (KDoc: selects Maven layout vs OCI/Docker V2; container reuses `kind`, `remoteUrl`, `remoteUsername/Password`, `access`; `type` ignored for CONTAINER)
+- [x] T003 [P] Bump `VERSION` from `1.0.0` to `1.1.0` (additive capability)
 
 ---
 
@@ -43,13 +43,20 @@ and cross-cutting recognition shared by BOTH the proxy (US1) and hosted (US2) st
 
 ### Foundational unit tests (write first, must fail)
 
-- [ ] T004 [P] `DigestTest` — compute `sha256` over a stream, verify match/mismatch, parse/reject `sha256:<hex>` grammar, in `test/.../container/DigestTest.kt`
-- [ ] T005 [P] `ImageReferenceTest` — parse `/v2/{repo}/{name}/{op}/{ref}` (names with slashes; tag vs digest ref), reject bad name grammar + path traversal, in `test/.../container/ImageReferenceTest.kt`
+- [x] T004 [P] `DigestTest` — compute `sha256` over a stream, verify match/mismatch, parse/reject `sha256:<hex>` grammar, in `test/.../container/DigestTest.kt` (written; sha256 vectors independently verified — build not runnable in sandbox, see note)
+- [x] T005 [P] `ImageReferenceTest` — parse `/v2/{repo}/{name}/{op}/{ref}` (names with slashes; tag vs digest ref), reject bad name grammar + path traversal, in `test/.../container/ImageReferenceTest.kt` (written; build not runnable in sandbox)
 
 ### Foundational implementation
 
-- [ ] T006 [P] `Digest` value type (compute over `InputStream`, verify against claimed digest, parse/format `sha256:<hex>`) in `.../container/Digest.kt`
-- [ ] T007 [P] `ImageReference` parser/validator (repo, imageName, operation, ref) in `.../container/ImageReference.kt`
+- [x] T006 [P] `Digest` value type (compute over `InputStream`, verify against claimed digest, parse/format `sha256:<hex>`) in `.../container/Digest.kt`
+- [x] T007 [P] `ImageReference` parser/validator (repo, imageName, operation, ref) in `.../container/ImageReference.kt`
+
+> **Build-verification note (2026-07-04)**: T001–T007 are written but NOT yet compiled/tested in this
+> environment. The pinned Gradle 9.4.1 distribution is egress-blocked (github.com) and the system Gradle
+> 8.14.3 fails the `verification-metadata.xml` gate (resolves a different plugin-classpath `kotlin-stdlib`).
+> The gate was NOT weakened and the egress policy was NOT bypassed. Run `./gradlew build` (or
+> `:backend:test`) in CI / a network-enabled environment with Gradle 9.4.1 to turn these green. The
+> `sha256` test vectors in `DigestTest` were verified independently with `sha256sum`.
 - [ ] T008 Create Liquibase changeset `backend/src/main/resources/db/changelog/002-container-registry.xml` with tables `container_manifest`, `container_tag`, `blob_upload` (columns + unique/index per data-model.md) and register it in `db/changelog/db.changelog-master.yaml`
 - [ ] T009 [P] `ContainerManifest` entity + `ContainerManifestRepository` (unique `(repository,digest)`; index `(repository,imageName)`) in `.../container/persistence/`
 - [ ] T010 [P] `ContainerTag` entity + `ContainerTagRepository` (unique `(repository,imageName,tag)`; list by `(repository,imageName)`) in `.../container/persistence/`
