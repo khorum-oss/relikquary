@@ -1,5 +1,10 @@
 # Relikquary detekt configuration. Layered on top of detekt's default rules
 # (buildUponDefaultConfig = true); only deliberate deviations are listed here.
+complexity:
+  ThrowsCount:
+    # Guard-style validators (e.g. digest/reference parsing) legitimately reject several distinct
+    # malformed shapes with their own messages; multiple throws are an accepted style here.
+    max: 4
 style:
   MaxLineLength:
     # Slightly wider than the 120 default to accommodate descriptive test names

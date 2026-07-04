@@ -5,6 +5,7 @@ import org.khorum.oss.relikquary.storage.ArtifactWrite
 import org.khorum.oss.relikquary.storage.StoredArtifact
 import org.springframework.stereotype.Component
 import java.io.InputStream
+import java.security.DigestInputStream
 import java.security.MessageDigest
 
 /**
@@ -53,18 +54,9 @@ class ContainerStorage(private val storage: ArtifactStorage) {
     fun writeBlobVerified(repository: String, digest: Digest, content: InputStream): Long {
         val write = storage.openWrite(blobKey(repository, digest))
         val md = MessageDigest.getInstance("SHA-256")
-        var written = 0L
         try {
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            content.use { source ->
-                while (true) {
-                    val read = source.read(buffer)
-                    if (read < 0) break
-                    md.update(buffer, 0, read)
-                    write.sink.write(buffer, 0, read)
-                    written += read
-                }
-            }
+            // DigestInputStream computes the sha256 as the bytes are copied to the sink — no manual loop.
+            val written = DigestInputStream(content, md).use { it.copyTo(write.sink) }
             val computed = "${Digest.ALGORITHM}:${md.digest().toHex()}"
             if (computed != digest.value) {
                 write.abort()
