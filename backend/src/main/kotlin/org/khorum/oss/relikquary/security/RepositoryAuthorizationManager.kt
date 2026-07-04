@@ -55,7 +55,27 @@ class RepositoryAuthorizationManager(
 
     private fun target(request: HttpServletRequest): Target? {
         val segments = decodedPath(request).split('/').filter { it.isNotEmpty() }
-        return if (segments.firstOrNull() == "api") browseTarget(request, segments) else mavenTarget(request, segments)
+        return when (segments.firstOrNull()) {
+            "api" -> browseTarget(request, segments)
+            "v2" -> containerTarget(request, segments)
+            else -> mavenTarget(request, segments)
+        }
+    }
+
+    /**
+     * Container registry (feature 018): `/v2/{repo}/…` — GET/HEAD ⇒ READ, POST/PATCH/PUT ⇒ PUBLISH,
+     * DELETE ⇒ DELETE. Bare `GET /v2/` (the version check) is not repo-scoped and is granted (the
+     * controller answers 200 or, when a subsequent op needs a role, the standard Basic challenge fires).
+     */
+    private fun containerTarget(request: HttpServletRequest, segments: List<String>): Target? {
+        val repoName = segments.getOrNull(1) ?: return null
+        val action = when (request.method.uppercase()) {
+            "GET", "HEAD" -> Action.READ
+            "POST", "PATCH", "PUT" -> Action.PUBLISH
+            "DELETE" -> Action.DELETE
+            else -> return null
+        }
+        return Target(repoName, action)
     }
 
     /** Maven wire protocol: `/{repo}/{artifactPath}` — GET/HEAD ⇒ READ, PUT ⇒ PUBLISH. */

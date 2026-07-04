@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Container (OCI/Docker) registry state (feature 018): manifest descriptors, tag pointers, and
+     in-progress blob-upload sessions. Blob/manifest BYTES live in ArtifactStorage (content-addressable
+     by digest), not here; these tables hold only the relational state that is not byte-addressable. -->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="002-container-manifest" author="relikquary">
+        <createTable tableName="container_manifest">
+            <column name="id" type="VARCHAR(40)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="repository" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="image_name" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="digest" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="media_type" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="size_bytes" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="container_manifest" columnNames="repository, digest"
+            constraintName="uq_container_manifest_repo_digest"/>
+        <createIndex tableName="container_manifest" indexName="ix_container_manifest_repo_image">
+            <column name="repository"/>
+            <column name="image_name"/>
+        </createIndex>
+        <modifySql dbms="sqlite">
+            <replace replace="TEXT" with="timestamp"/>
+        </modifySql>
+    </changeSet>
+
+    <changeSet id="002-container-tag" author="relikquary">
+        <createTable tableName="container_tag">
+            <column name="id" type="VARCHAR(40)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="repository" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="image_name" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tag" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="manifest_digest" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="container_tag" columnNames="repository, image_name, tag"
+            constraintName="uq_container_tag_repo_image_tag"/>
+        <modifySql dbms="sqlite">
+            <replace replace="TEXT" with="timestamp"/>
+        </modifySql>
+    </changeSet>
+
+    <changeSet id="002-blob-upload" author="relikquary">
+        <createTable tableName="blob_upload">
+            <column name="upload_id" type="VARCHAR(60)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="repository" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="image_name" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bytes_received" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="pending_key" type="VARCHAR(600)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="started_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <modifySql dbms="sqlite">
+            <replace replace="TEXT" with="timestamp"/>
+        </modifySql>
+    </changeSet>
+</databaseChangeLog>

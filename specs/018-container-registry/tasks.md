@@ -57,15 +57,15 @@ and cross-cutting recognition shared by BOTH the proxy (US1) and hosted (US2) st
 > The gate was NOT weakened and the egress policy was NOT bypassed. Run `./gradlew build` (or
 > `:backend:test`) in CI / a network-enabled environment with Gradle 9.4.1 to turn these green. The
 > `sha256` test vectors in `DigestTest` were verified independently with `sha256sum`.
-- [ ] T008 Create Liquibase changeset `backend/src/main/resources/db/changelog/002-container-registry.xml` with tables `container_manifest`, `container_tag`, `blob_upload` (columns + unique/index per data-model.md) and register it in `db/changelog/db.changelog-master.yaml`
-- [ ] T009 [P] `ContainerManifest` entity + `ContainerManifestRepository` (unique `(repository,digest)`; index `(repository,imageName)`) in `.../container/persistence/`
-- [ ] T010 [P] `ContainerTag` entity + `ContainerTagRepository` (unique `(repository,imageName,tag)`; list by `(repository,imageName)`) in `.../container/persistence/`
-- [ ] T011 [P] `BlobUpload` entity + `BlobUploadRepository` (PK `uploadId`; `bytesReceived`, `pendingKey`) in `.../container/persistence/`
-- [ ] T012 `ContainerStorage` — blob/manifest key scheme (`{repo}/_container/blobs|manifests/sha256/{hex}`) over `ArtifactStorage`; `exists`, `openRead`, and digest-verified `openWrite`→verify→`commit`/`abort`; in `.../container/ContainerStorage.kt` (depends T006)
-- [ ] T013 Extend `RepositoryRegistry` validation: CONTAINER+PROXY defaults `remoteUrl` to Docker Hub when blank; CONTAINER+GROUP rejected as invalid config; in `.../repository/RepositoryRegistry.kt` (depends T001, T002)
-- [ ] T014 `ContainerRegistryController` skeleton `@RequestMapping("/v2")`: parse via `ImageReference`, `GET /v2/` version check (200 + `Docker-Distribution-API-Version`), OCI JSON error body helper `{"errors":[…]}` + `@ExceptionHandler`s (NAME_UNKNOWN/NAME_INVALID/UNSUPPORTED/…), dispatch stubs by `(format, kind)`, in `.../container/ContainerRegistryController.kt` (depends T007)
-- [ ] T015 Teach `RepositoryAuthorizationManager` the `/v2/{repo}/…` shape → GET/HEAD=READ, POST/PATCH/PUT=PUBLISH, DELETE=DELETE; grant bare `GET /v2/`; in `.../security/RepositoryAuthorizationManager.kt`
-- [ ] T016 Teach `RequestLoggingFilter` to reserve `v2` and report the container repo name (segment after `/v2/`) in `.../observability/logging/RequestLoggingFilter.kt`
+- [x] T008 Create Liquibase changeset `backend/src/main/resources/db/changelog/002-container-registry.xml` with tables `container_manifest`, `container_tag`, `blob_upload` (columns + unique/index per data-model.md) and register it in `db/changelog/db.changelog-master.yaml`
+- [x] T009 [P] `ContainerManifest` entity + `ContainerManifestRepository` (unique `(repository,digest)`; index `(repository,imageName)`) in `.../container/persistence/`
+- [x] T010 [P] `ContainerTag` entity + `ContainerTagRepository` (unique `(repository,imageName,tag)`; list by `(repository,imageName)`) in `.../container/persistence/`
+- [x] T011 [P] `BlobUpload` entity + `BlobUploadRepository` (PK `uploadId`; `bytesReceived`, `pendingKey`) in `.../container/persistence/`
+- [x] T012 `ContainerStorage` — blob/manifest key scheme (`{repo}/_container/blobs|manifests/sha256/{hex}`) over `ArtifactStorage`; `exists`, `openRead`, and digest-verified `openWrite`→verify→`commit`/`abort`; in `.../container/ContainerStorage.kt` (depends T006)
+- [x] T013 Extend `RepositoryRegistry` validation: CONTAINER+PROXY defaults `remoteUrl` to Docker Hub when blank; CONTAINER+GROUP rejected as invalid config; in `.../repository/RepositoryRegistry.kt` (depends T001, T002)
+- [x] T014 `ContainerRegistryController` skeleton `@RequestMapping("/v2")`: parse via `ImageReference`, `GET /v2/` version check (200 + `Docker-Distribution-API-Version`), OCI JSON error body helper `{"errors":[…]}` + `@ExceptionHandler`s (NAME_UNKNOWN/NAME_INVALID/UNSUPPORTED/…), dispatch stubs by `(format, kind)`, in `.../container/ContainerRegistryController.kt` (depends T007)
+- [x] T015 Teach `RepositoryAuthorizationManager` the `/v2/{repo}/…` shape → GET/HEAD=READ, POST/PATCH/PUT=PUBLISH, DELETE=DELETE; grant bare `GET /v2/`; in `.../security/RepositoryAuthorizationManager.kt`
+- [x] T016 Teach `RequestLoggingFilter` to reserve `v2` and report the container repo name (segment after `/v2/`) in `.../observability/logging/RequestLoggingFilter.kt`
 
 **Checkpoint**: Foundation ready — the `/v2/` version check answers, storage/data layers exist, auth +
 logging recognize `/v2`. US1 and US2 can now proceed (in parallel if staffed).
@@ -82,15 +82,15 @@ upstream, digests verify), then re-pull with the upstream unavailable (served fr
 
 ### Tests for User Story 1 (write first, must fail) ⚠️
 
-- [ ] T017 [P] [US1] `ContainerUpstreamClientTest` — parse `WWW-Authenticate: Bearer` challenge, request the scoped token, retry with `Bearer`; `library/` normalization; map 200/404/5xx → Found/NotFound/Error (stub HTTP server), in `test/.../container/ContainerUpstreamClientTest.kt`
-- [ ] T018 [P] [US1] `ContainerProxyIT` — `registry:2` Testcontainer seeded with a small image as the stub upstream; pull manifest + blob through the proxy; assert digest-identity; second pull is a cache hit (no upstream blob fetch), in `test/.../container/ContainerProxyIT.kt`
-- [ ] T019 [P] [US1] `ContainerProxyDockerHubIT` — real `library/alpine` pull through the proxy, `@EnabledIf`-guarded to auto-skip when offline, in `test/.../container/ContainerProxyDockerHubIT.kt`
+- [x] T017 [P] [US1] `ContainerUpstreamClientTest` — parse `WWW-Authenticate: Bearer` challenge, request the scoped token, retry with `Bearer`; `library/` normalization; map 200/404/5xx → Found/NotFound/Error (stub HTTP server), in `test/.../container/ContainerUpstreamClientTest.kt`
+- [x] T018 [P] [US1] `ContainerProxyIT` — an in-JVM `StubOciRegistry` (JDK HttpServer, enforces the Bearer handshake) as the stub upstream — chosen over a `registry:2` Testcontainer to avoid Docker-in-Docker and match the existing `StubUpstream` precedent (spec 006); pulls manifest + blob through the proxy, asserts digest-identity, and serves the blob from cache after the upstream is stopped, in `test/.../container/ContainerProxyIT.kt` (+ `StubOciRegistry.kt`)
+- [x] T019 [P] [US1] `ContainerProxyDockerHubIT` — real `library/alpine` pull through the proxy, `@EnabledIf`-guarded to auto-skip when offline, in `test/.../container/ContainerProxyDockerHubIT.kt`
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] `ContainerUpstreamClient` — OCI upstream fetch with the Bearer-token handshake, correct `Accept` (Docker v2 + OCI image/index), `library/` normalization, redirect-follow for blob CDNs, optional configured Basic creds; `Found/NotFound/Error`; in `.../container/proxy/ContainerUpstreamClient.kt` (depends T006)
-- [ ] T021 [US1] `ContainerProxyService` — resolve tag→digest live upstream; serve cached-by-digest else fetch+cache the manifest/index and blobs (feature-015 tee stream); persist `ContainerManifest` media type from upstream `Content-Type`; 404 (absent) vs 502 (upstream/token error); in `.../container/proxy/ContainerProxyService.kt` (depends T012, T020, T009)
-- [ ] T022 [US1] Wire proxy dispatch in `ContainerRegistryController`: GET/HEAD `manifests/{ref}`, GET/HEAD `blobs/{digest}`, GET `tags/list` (live upstream); reject push verbs to a proxy with 405 `UNSUPPORTED`; in `.../container/ContainerRegistryController.kt` (depends T014, T021)
+- [x] T020 [US1] `ContainerUpstreamClient` — OCI upstream fetch with the Bearer-token handshake, correct `Accept` (Docker v2 + OCI image/index), `library/` normalization, redirect-follow for blob CDNs, optional configured Basic creds; `Found/NotFound/Error`; in `.../container/proxy/ContainerUpstreamClient.kt` (depends T006)
+- [x] T021 [US1] `ContainerProxyService` — resolve tag→digest live upstream; serve cached-by-digest else fetch+cache the manifest/index and blobs (feature-015 tee stream); persist `ContainerManifest` media type from upstream `Content-Type`; 404 (absent) vs 502 (upstream/token error); in `.../container/proxy/ContainerProxyService.kt` (depends T012, T020, T009)
+- [x] T022 [US1] Wire proxy dispatch in `ContainerRegistryController`: GET/HEAD `manifests/{ref}`, GET/HEAD `blobs/{digest}`, GET `tags/list` (live upstream); reject push verbs to a proxy with 405 `UNSUPPORTED`; in `.../container/ContainerRegistryController.kt` (depends T014, T021)
 
 **Checkpoint**: A real `docker pull` through the proxy works end-to-end and caches — US1 is independently
 shippable (MVP candidate).
