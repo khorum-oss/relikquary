@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import org.junit.jupiter.api.io.TempDir
+import java.util.concurrent.TimeUnit
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -53,6 +55,7 @@ class ProxyCentralIT {
     }
 
     @Test
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
     fun `proxies and caches a real artifact from Maven Central when reachable`() {
         assumeTrue(centralReachable()) { "Maven Central not reachable — skipping" }
 
@@ -72,7 +75,8 @@ class ProxyCentralIT {
 
     private fun get(path: String): HttpResponse<ByteArray> =
         http.send(
-            HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path")).GET().build(),
+            HttpRequest.newBuilder(URI.create("http://127.0.0.1:$port$path"))
+                .timeout(PROBE_TIMEOUT).GET().build(),
             HttpResponse.BodyHandlers.ofByteArray(),
         )
 
