@@ -1,84 +1,99 @@
-# Relikquary on Kubernetes (feature 013 + 016) — a general starting-point manifest to apply and adapt.
-# Split deployment: backend (API) + frontend (UI) + PostgreSQL (application state). Artifact storage is
-# on a PVC (single replica); tokens/users/settings/history live in PostgreSQL.
-# Apply into your chosen namespace:  kubectl apply -n <ns> -f deploy/k8s/relikquary.yaml
+# Relikquary on Kubernetes — LOCAL DEV stack (the k8s counterpart of deploy/docker-compose.dev.yml).
+# PostgreSQL + backend (auth OFF) + frontend, self-contained in the `relikquary-dev` namespace with
+# throwaway dev credentials. Everything is reachable via NodePort so it works out-of-the-box on a local
+# cluster (Docker Desktop, kind, minikube, k3d).
 #
-# IMAGES: this project ships artifacts only (no registry push). Build the images and make them available
-# to your cluster (load into the node, or push to your registry and update the `image:` fields below).
+#   # Build the images and make them available to the cluster first (this project pushes no registry):
+#   docker build -f deploy/backend.Dockerfile  -t relikquary-backend:local  .
+#   docker build -f deploy/frontend.Dockerfile -t relikquary-frontend:local .
+#   #   kind:     kind load docker-image relikquary-backend:local relikquary-frontend:local
+#   #   minikube: minikube image load relikquary-backend:local relikquary-frontend:local
+#   #   Docker Desktop k8s shares the local image store — nothing extra needed.
 #
-# SECRETS: the Secret below contains PLACEHOLDERS only. Replace them via your secrets tooling before
-# exposing the server — do not commit real values.
+#   kubectl apply -f deploy/k8s/relikquary-dev.yaml
 #
-# S3 / MULTI-REPLICA: to use S3-compatible object storage instead of the PVC, set
-# RELIKQUARY_STORAGE_BACKEND=s3 in the ConfigMap, fill the S3 keys in the Secret, remove the PVC + its
-# volume/volumeMount, and raise `replicas` on the backend Deployment (S3 is shared; the RWO PVC is not).
+#   API / Maven repos : http://localhost:30080/<repo>/...   (NodePort)
+#   UI                : http://localhost:30081              (NodePort)
+#   # If NodePort localhost access doesn't work for your cluster (e.g. plain kind), port-forward instead:
+#   kubectl -n relikquary-dev port-forward svc/relikquary-backend 8080:8080
+#   kubectl -n relikquary-dev port-forward svc/relikquary-frontend 8081:8080
+#
+#   Tear it all down:  kubectl delete namespace relikquary-dev
+#
+# WARNING: auth is DISABLED and credentials are throwaway — anyone who can reach these ports can
+# publish/resolve/manage. This file is for local development only; never expose it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: relikquary-dev
+  labels:
+    app.kubernetes.io/name: relikquary
+    app.kubernetes.io/part-of: relikquary
+    environment: dev
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: relikquary-config
+  namespace: relikquary-dev
 data:
+  # Dev only: no authentication, so anyone can publish/resolve/manage locally.
+  RELIKQUARY_SECURITY_ENABLED: "false"
   RELIKQUARY_STORAGE_ROOT: "/data"
-  RELIKQUARY_SECURITY_USERS_0_USERNAME: "publisher"
-  RELIKQUARY_SECURITY_USERS_0_ROLES_0: "PUBLISH"
-  # Application state (tokens/users/settings/history) in PostgreSQL (feature 016). The password comes
-  # from the Secret below. To use embedded SQLite instead (single replica only), set the backend to
-  # "sqlite", set RELIKQUARY_DB_PATH to a path on the data PVC, and delete the postgres resources.
+  # Dev only: structured per-request access log ON (feature 010) so you can see every resolve/publish
+  # hit the server (the 'relikquary.access' logger). Off by default in the shipped config.
+  RELIKQUARY_OBSERVABILITY_REQUEST_LOG_ENABLED: "true"
+  # Application state (tokens/users/settings/history) in PostgreSQL (feature 016). To use embedded
+  # SQLite instead, set the backend to "sqlite", point RELIKQUARY_DB_PATH at the data PVC, and delete
+  # the postgres resources + the wait-for-postgres init container.
   RELIKQUARY_PERSISTENCE_BACKEND: "postgres"
   RELIKQUARY_DB_URL: "jdbc:postgresql://relikquary-postgres:5432/relikquary"
   RELIKQUARY_DB_USER: "relikquary"
   # Upstream proxy defaults (override if you mirror them internally):
   RELIKQUARY_MAVEN_CENTRAL_URL: "https://repo1.maven.org/maven2"
   RELIKQUARY_GRADLE_PLUGIN_PORTAL_URL: "https://plugins.gradle.org/m2/"
-  # --- S3 alternative (uncomment, and remove the PVC below) ---
-  # RELIKQUARY_STORAGE_BACKEND: "s3"
-  # RELIKQUARY_S3_ENDPOINT: "https://s3.example.com"
-  # RELIKQUARY_S3_REGION: "us-east-1"
-  # RELIKQUARY_S3_BUCKET: "relikquary"
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: relikquary-secrets
+  namespace: relikquary-dev
 type: Opaque
 stringData:
-  # PLACEHOLDERS — replace before use. The password needs an encoder prefix ({noop}.. or {bcrypt}..).
-  RELIKQUARY_SECURITY_USERS_0_PASSWORD: "{noop}changeme"
-  # PostgreSQL password — shared by the postgres container (POSTGRES_PASSWORD) and the backend
-  # (RELIKQUARY_DB_PASSWORD). Replace before use.
-  RELIKQUARY_DB_PASSWORD: "changeme"
-  # Only used when RELIKQUARY_STORAGE_BACKEND=s3:
-  RELIKQUARY_S3_ACCESS_KEY: "changeme"
-  RELIKQUARY_S3_SECRET_KEY: "changeme"
+  # Throwaway dev PostgreSQL password — shared by the postgres container (POSTGRES_PASSWORD) and the
+  # backend (RELIKQUARY_DB_PASSWORD). Fine to commit for local dev; do NOT reuse anywhere real.
+  RELIKQUARY_DB_PASSWORD: "relikquary"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: relikquary-data
+  namespace: relikquary-dev
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 2Gi
 ---
-# --- PostgreSQL for application state (feature 016). Delete these three resources if you switch the
-# --- backend to embedded SQLite (see the ConfigMap note).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: relikquary-postgres-data
+  namespace: relikquary-dev
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 10Gi
+      storage: 2Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: relikquary-postgres
+  namespace: relikquary-dev
   labels:
     app.kubernetes.io/name: relikquary
     app.kubernetes.io/component: postgres
@@ -151,6 +166,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: relikquary-postgres
+  namespace: relikquary-dev
 spec:
   selector:
     app.kubernetes.io/name: relikquary
@@ -164,11 +180,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: relikquary-backend
+  namespace: relikquary-dev
   labels:
     app.kubernetes.io/name: relikquary
     app.kubernetes.io/component: backend
 spec:
-  # ReadWriteOnce PVC ⇒ single replica. Switch to S3 storage to scale beyond 1.
+  # ReadWriteOnce PVC ⇒ single replica (fine for dev).
   replicas: 1
   strategy:
     type: Recreate
@@ -190,8 +207,7 @@ spec:
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
-      # Wait for PostgreSQL before starting so the app doesn't crash-loop on first apply. Remove this
-      # init container if you switch the backend to embedded SQLite.
+      # Wait for PostgreSQL so the app doesn't crash-loop on first apply. Remove if using SQLite.
       initContainers:
         - name: wait-for-postgres
           image: busybox:1.36
@@ -247,19 +263,29 @@ apiVersion: v1
 kind: Service
 metadata:
   name: relikquary-backend
+  namespace: relikquary-dev
 spec:
+  # Fixed API / Maven port via two stable paths from one service:
+  #   - LoadBalancer `port: 8081` → on Docker Desktop binds http://localhost:8081.
+  #   - pinned `nodePort: 30081`  → works on every cluster (kind/minikube where the LB stays <pending>),
+  #     reachable at http://<node>:30081 with no port-forward needed.
+  # A NodePort can't itself be 8081 (k8s restricts NodePorts to 30000–32767), hence the LoadBalancer
+  # for the nice localhost:8081 plus the pinned NodePort for portability.
+  type: LoadBalancer
   selector:
     app.kubernetes.io/name: relikquary
     app.kubernetes.io/component: backend
   ports:
     - name: http
-      port: 8080
+      port: 8081
       targetPort: 8080
+      nodePort: 30081
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: relikquary-frontend
+  namespace: relikquary-dev
   labels:
     app.kubernetes.io/name: relikquary
     app.kubernetes.io/component: frontend
@@ -284,8 +310,10 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # The backend Service listens on 8081 (see its LoadBalancer above), so the UI must proxy
+            # there — not 8080. 8081 is the backend's canonical port, in-cluster and externally.
             - name: RELIKQUARY_BACKEND
-              value: "http://relikquary-backend:8080"
+              value: "http://relikquary-backend:8081"
           livenessProbe:
             httpGet:
               path: /
@@ -310,7 +338,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: relikquary-frontend
+  namespace: relikquary-dev
 spec:
+  # NodePort with no fixed nodePort ⇒ Kubernetes auto-assigns a free external port. Internal ports
+  # stay standard (8080). Find it with:  kubectl -n relikquary-dev get svc relikquary-frontend
+  type: NodePort
   selector:
     app.kubernetes.io/name: relikquary
     app.kubernetes.io/component: frontend
@@ -318,25 +350,3 @@ spec:
     - name: http
       port: 8080
       targetPort: 8080
-# --- Ingress example (uncomment and set your host/class): route the UI to the frontend and the API +
-# --- Maven repository paths to the backend. Combined-image users route everything to one Service.
-# ---
-# apiVersion: networking.k8s.io/v1
-# kind: Ingress
-# metadata:
-#   name: relikquary
-# spec:
-#   rules:
-#     - host: relikquary.example.com
-#       http:
-#         paths:
-#           - path: /api
-#             pathType: Prefix
-#             backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
-#           # Add each Maven repository prefix you serve (e.g. /releases, /snapshots, /public, /maven-central):
-#           - path: /releases
-#             pathType: Prefix
-#             backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
-#           - path: /
-#             pathType: Prefix
-#             backend: { service: { name: relikquary-frontend, port: { number: 8080 } } }

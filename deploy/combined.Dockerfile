@@ -20,8 +20,8 @@ FROM eclipse-temurin:21-jre AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system relikquary \
-    && useradd --system --gid relikquary --home-dir /app --shell /usr/sbin/nologin relikquary \
+    && groupadd --system --gid 999 relikquary \
+    && useradd --system --uid 999 --gid relikquary --home-dir /app --shell /usr/sbin/nologin relikquary \
     && mkdir -p /app /data \
     && chown -R relikquary:relikquary /app /data
 WORKDIR /app
