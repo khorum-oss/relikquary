@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/015-proxy-streaming-cache/plan.md
+at specs/017-dev-k8s-stack/plan.md
 <!-- SPECKIT END -->
