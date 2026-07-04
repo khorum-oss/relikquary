@@ -60,8 +60,12 @@ class ProxyCentralIT {
         assertEquals(200, first.statusCode())
         assertTrue(first.body().isNotEmpty()) { "empty body from upstream" }
 
-        // Cached locally; a second request returns the same bytes (served from cache).
+        // Cached locally; a second request returns the same bytes (served from cache). The streaming
+        // tee (feature 015) commits the cache on the server just after the response completes, so the
+        // check can race the commit — poll briefly rather than asserting it the instant get() returns.
         val cached = storageRoot.resolve("maven-central/$ARTIFACT")
+        val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+        while (!cached.toFile().isFile && System.nanoTime() < deadline) Thread.sleep(50)
         assertTrue(cached.toFile().isFile) { "artifact was not cached locally" }
         assertEquals(first.body().size, get("/maven-central/$ARTIFACT").body().size)
     }
