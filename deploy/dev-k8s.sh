@@ -23,12 +23,34 @@ need() {
   command -v "$1" >/dev/null 2>&1 || { echo "dev-k8s: '$1' not found on PATH — $2" >&2; exit 1; }
 }
 
+# Make the freshly built images available to the current cluster. Docker Desktop shares the host image
+# store (nothing to do); k3d and kind run their own image store, so import/load into the cluster or pods
+# hit ImagePullBackOff (imagePullPolicy: IfNotPresent, no registry to pull the :local tag from).
+load_images() {
+  local ctx="${1:-$(kubectl config current-context 2>/dev/null || true)}"
+  case "$ctx" in
+    k3d-*)
+      need k3d "install k3d, or import the images manually."
+      echo "dev-k8s: importing images into k3d cluster '${ctx#k3d-}' ..."
+      k3d image import "$BACKEND_IMAGE" "$FRONTEND_IMAGE" -c "${ctx#k3d-}"
+      ;;
+    kind-*)
+      need kind "install kind, or load the images manually."
+      echo "dev-k8s: loading images into kind cluster '${ctx#kind-}' ..."
+      kind load docker-image "$BACKEND_IMAGE" "$FRONTEND_IMAGE" --name "${ctx#kind-}"
+      ;;
+    docker-desktop|"") : ;; # shared image store (or no context) — nothing to import
+    *) echo "dev-k8s: context '$ctx' — ensure $BACKEND_IMAGE / $FRONTEND_IMAGE are available to the cluster." ;;
+  esac
+}
+
 do_build() {
   need docker "install Docker to build the images."
   echo "dev-k8s: building $BACKEND_IMAGE ..."
   docker build -f "$ROOT/deploy/backend.Dockerfile" -t "$BACKEND_IMAGE" "$ROOT"
   echo "dev-k8s: building $FRONTEND_IMAGE ..."
   docker build -f "$ROOT/deploy/frontend.Dockerfile" -t "$FRONTEND_IMAGE" "$ROOT"
+  load_images
 }
 
 do_up() {
@@ -58,6 +80,12 @@ print_urls() {
   echo "  API / Maven repos : http://localhost:${blb:-<not-deployed>}   (fixed — LoadBalancer, Docker Desktop)"
   echo "  UI                : http://localhost:${fport:-<not-deployed>}   (random — changes on teardown)"
   echo "  (kind/minikube: API is on fixed NodePort ${bnode:-<not-deployed>} at the node IP; on Docker Desktop use :${blb:-8081}.)"
+  case "$(kubectl config current-context 2>/dev/null || true)" in
+    k3d-*)
+      echo "  k3d: localhost:${blb:-8081} only binds if the cluster was created with '-p ${blb:-8081}:${blb:-8081}@loadbalancer'."
+      echo "       Otherwise port-forward:  kubectl -n $NS port-forward svc/relikquary-backend ${blb:-8081}:${blb:-8081}"
+      ;;
+  esac
 }
 
 do_status() {

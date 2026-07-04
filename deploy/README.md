@@ -214,6 +214,11 @@ For a throwaway stack on a local cluster (Docker Desktop, kind, minikube, k3d) �
 > NodePort `30081`** — reach it at `http://<node-ip>:30081` (`kubectl get nodes -o wide` for the IP;
 > kind can map it to localhost via `extraPortMappings`). Or, for a clean `localhost:8081` on any
 > cluster: `kubectl -n relikquary-dev port-forward svc/relikquary-backend 8081:8081`.
+>
+> **k3d**: `dev-k8s.sh build`/`deploy` auto-imports the images into the cluster (`k3d image import`) —
+> k3d nodes have their own image store, so host-built `:local` images aren't visible otherwise. For a
+> host-bound `localhost:8081`, create the cluster with the LoadBalancer port mapped, e.g.
+> `k3d cluster create dev -p '8081:8081@loadbalancer'`; otherwise use the port-forward above.
 
 **Easiest — the `dev-k8s.sh` helper.** Build + apply + roll + status in one shot:
 
