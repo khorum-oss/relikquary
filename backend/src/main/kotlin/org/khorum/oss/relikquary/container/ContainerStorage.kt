@@ -91,7 +91,7 @@ class ContainerStorage(private val storage: ArtifactStorage) {
 
     private companion object {
         const val CONTAINER_PREFIX = "_container"
-
-        fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
     }
 }
+
+private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }

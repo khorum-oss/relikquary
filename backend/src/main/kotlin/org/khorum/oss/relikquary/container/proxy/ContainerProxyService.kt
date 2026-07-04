@@ -96,23 +96,23 @@ class ContainerProxyService(
 
     private fun cacheManifest(repository: String, imageName: String, bytes: ByteArray, mediaType: String): ManifestOutcome.Found {
         // Compute the digest from the bytes (authoritative), rather than trusting the upstream header.
-        val digest = Digest.of(bytes)
-        if (!storage.hasManifest(repository, digest)) {
-            storage.writeManifestBytes(repository, digest, bytes)
+        val computed = Digest.of(bytes)
+        if (!storage.hasManifest(repository, computed)) {
+            storage.writeManifestBytes(repository, computed, bytes)
         }
-        if (!manifests.existsByRepositoryAndDigest(repository, digest.value)) {
-            manifests.save(
-                ContainerManifest().apply {
-                    id = UUID.randomUUID().toString()
-                    this.repository = repository
-                    this.imageName = imageName
-                    this.digest = digest.value
-                    this.mediaType = mediaType
-                    sizeBytes = bytes.size.toLong()
-                    createdAt = Instant.now()
-                },
-            )
+        if (!manifests.existsByRepositoryAndDigest(repository, computed.value)) {
+            // Explicit assignment (not apply): the entity's field names collide with the params, and inside
+            // an apply block the receiver's members would shadow them.
+            val row = ContainerManifest()
+            row.id = UUID.randomUUID().toString()
+            row.repository = repository
+            row.imageName = imageName
+            row.digest = computed.value
+            row.mediaType = mediaType
+            row.sizeBytes = bytes.size.toLong()
+            row.createdAt = Instant.now()
+            manifests.save(row)
         }
-        return ManifestOutcome.Found(bytes, mediaType, digest)
+        return ManifestOutcome.Found(bytes, mediaType, computed)
     }
 }
