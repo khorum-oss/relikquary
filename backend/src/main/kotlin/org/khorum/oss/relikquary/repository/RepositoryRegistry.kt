@@ -28,6 +28,10 @@ class RepositoryRegistry(properties: RepositoryProperties) {
     fun all(): List<RepositoryProperties.Repo> = byName.values.toList()
 
     private fun validate(repo: RepositoryProperties.Repo) {
+        if (repo.format == RepositoryFormat.CONTAINER) {
+            validateContainer(repo)
+            return
+        }
         when (repo.kind) {
             RepositoryKind.HOSTED -> Unit
             RepositoryKind.PROXY ->
@@ -35,6 +39,17 @@ class RepositoryRegistry(properties: RepositoryProperties) {
                     fail("proxy repository '${repo.name}' requires a remoteUrl")
                 }
             RepositoryKind.GROUP -> validateGroup(repo)
+        }
+    }
+
+    /**
+     * Container repositories (feature 018) support HOSTED (push/pull) and PROXY (a read-only pull-through
+     * cache); a PROXY may omit remoteUrl (it defaults to Docker Hub). GROUP is not supported for the
+     * container format in this feature.
+     */
+    private fun validateContainer(repo: RepositoryProperties.Repo) {
+        if (repo.kind == RepositoryKind.GROUP) {
+            fail("container repository '${repo.name}' does not support the group kind (feature 018)")
         }
     }
 

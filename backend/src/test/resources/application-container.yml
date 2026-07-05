@@ -1,0 +1,26 @@
+# Topology for the container (OCI/Docker) registry integration tests (@ActiveProfiles("container"), feature
+# 018). Every repository entry is fully specified so it cleanly shadows the base application.yml list BY
+# INDEX (Spring Boot merges lists per-index across sources) — six entries so no base group (which would
+# reference now-shadowed members) leaks through. The tests use `dockerhub` (proxy) and `containers` (hosted).
+# The Docker Hub upstream is overridden to an in-process StubOciRegistry via RELIKQUARY_DOCKERHUB_URL.
+relikquary:
+  repositories:
+    - name: containers            # [0] hosted container repo (docker push/pull)
+      kind: hosted
+      format: container
+    - name: dockerhub             # [1] proxy container repo (Docker Hub pull-through)
+      kind: proxy
+      format: container
+      remoteUrl: ${RELIKQUARY_DOCKERHUB_URL:https://registry-1.docker.io}
+    - name: releases              # [2] shadows base maven repo — kept valid, unused by the tests
+      kind: hosted
+      type: mixed
+    - name: snapshots             # [3]
+      kind: hosted
+      type: snapshot
+    - name: mirror                # [4] shadows base 'public' group (avoids a dangling group member)
+      kind: hosted
+      type: mixed
+    - name: plugins               # [5] shadows base 'plugins' group
+      kind: hosted
+      type: mixed

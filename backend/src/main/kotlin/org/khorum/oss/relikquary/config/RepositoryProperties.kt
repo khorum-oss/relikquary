@@ -1,5 +1,6 @@
 package org.khorum.oss.relikquary.config
 
+import org.khorum.oss.relikquary.repository.RepositoryFormat
 import org.khorum.oss.relikquary.repository.RepositoryKind
 import org.khorum.oss.relikquary.repository.RepositoryType
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -19,9 +20,18 @@ data class RepositoryProperties(
     data class Repo(
         val name: String = "",
         val kind: RepositoryKind = RepositoryKind.HOSTED,
-        /** HOSTED acceptance/mutability policy; ignored for PROXY/GROUP. */
+        /**
+         * Wire format: MAVEN (default) or CONTAINER (OCI/Docker Registry V2, feature 018). A CONTAINER
+         * repo reuses [kind] HOSTED/PROXY, [remoteUrl]/[remoteUsername]/[remotePassword], and [access];
+         * [type] is ignored for CONTAINER (container tags are mutable, digests immutable).
+         */
+        val format: RepositoryFormat = RepositoryFormat.MAVEN,
+        /** HOSTED acceptance/mutability policy; ignored for PROXY/GROUP and for CONTAINER repos. */
         val type: RepositoryType = RepositoryType.MIXED,
-        /** PROXY: upstream Maven-layout base URL (e.g. https://repo1.maven.org/maven2). */
+        /**
+         * PROXY upstream base URL. Maven: a Maven-layout base (e.g. https://repo1.maven.org/maven2).
+         * CONTAINER: an OCI registry base; defaults to Docker Hub (https://registry-1.docker.io) when blank.
+         */
         val remoteUrl: String? = null,
         /** PROXY: optional upstream Basic-auth user. */
         val remoteUsername: String? = null,

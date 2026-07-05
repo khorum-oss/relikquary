@@ -79,14 +79,23 @@ class RequestLoggingFilter(
         private const val NANOS_PER_MILLI = 1_000_000L
         private const val ANONYMOUS = "anonymousUser"
         private val RESERVED_PREFIXES = setOf("actuator", "api", "ui")
+        private const val CONTAINER_PREFIX = "v2"
 
         /**
          * The repository name a request targets: the first path segment, unless it is a reserved
-         * (non-repository) prefix (`actuator`/`api`/`ui`) — then null. Pure and unit-testable.
+         * (non-repository) prefix (`actuator`/`api`/`ui`) — then null. For the container registry
+         * (feature 018) the first segment is `v2`; the repository is the segment after it
+         * (`/v2/{repo}/…`), or null for the bare `/v2/` version check. Pure and unit-testable.
          */
         fun repositoryName(decodedPath: String): String? {
-            val first = decodedPath.trimStart('/').substringBefore('/')
-            return if (first.isEmpty() || first in RESERVED_PREFIXES) null else first
+            val segments = decodedPath.trimStart('/').split('/').filter { it.isNotEmpty() }
+            val first = segments.firstOrNull().orEmpty()
+            return when {
+                first.isEmpty() -> null
+                first == CONTAINER_PREFIX -> segments.getOrNull(1)
+                first in RESERVED_PREFIXES -> null
+                else -> first
+            }
         }
     }
 }
