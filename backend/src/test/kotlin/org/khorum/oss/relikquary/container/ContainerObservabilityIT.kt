@@ -34,6 +34,9 @@ class ContainerObservabilityIT {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     companion object {
+        const val HTTP_OK = 200
+        const val HTTP_CREATED = 201
+        const val MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
         const val REPO = "containers"
         const val IMAGE = "team/svc"
 
@@ -84,10 +87,4 @@ class ContainerObservabilityIT {
 
     private fun sha256(bytes: ByteArray): String =
         "sha256:" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private companion object {
-        const val HTTP_OK = 200
-        const val HTTP_CREATED = 201
-        const val MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
-    }
 }

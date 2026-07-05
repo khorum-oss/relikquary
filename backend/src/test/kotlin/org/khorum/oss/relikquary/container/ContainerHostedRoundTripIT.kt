@@ -36,6 +36,9 @@ class ContainerHostedRoundTripIT {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     companion object {
+        const val HTTP_OK = 200
+        const val HTTP_CREATED = 201
+        const val HTTP_ACCEPTED = 202
         const val IMAGE = "team/app"
         const val REPO = "containers"
         const val TAG = "1.0"
@@ -141,10 +144,4 @@ class ContainerHostedRoundTripIT {
 
     private fun sha256(bytes: ByteArray): String =
         "sha256:" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private companion object {
-        const val HTTP_OK = 200
-        const val HTTP_CREATED = 201
-        const val HTTP_ACCEPTED = 202
-    }
 }

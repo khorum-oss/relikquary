@@ -34,6 +34,9 @@ class ContainerErrorsIT {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     companion object {
+        const val HTTP_BAD_REQUEST = 400
+        const val HTTP_NOT_FOUND = 404
+        const val HTTP_ACCEPTED = 202
         const val IMAGE = "team/broken"
         const val REPO = "containers"
 
@@ -108,10 +111,4 @@ class ContainerErrorsIT {
 
     private fun sha256(bytes: ByteArray): String =
         "sha256:" + MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private companion object {
-        const val HTTP_BAD_REQUEST = 400
-        const val HTTP_NOT_FOUND = 404
-        const val HTTP_ACCEPTED = 202
-    }
 }

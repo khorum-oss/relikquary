@@ -33,6 +33,12 @@ class ContainerAuthIT {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     companion object {
+        const val HTTP_OK = 200
+        const val HTTP_ACCEPTED = 202
+        const val HTTP_UNAUTHORIZED = 401
+        const val HTTP_FORBIDDEN = 403
+        const val HTTP_NOT_FOUND = 404
+
         @TempDir
         @JvmStatic
         lateinit var tempDir: Path
@@ -85,13 +91,5 @@ class ContainerAuthIT {
     private fun authorized(builder: HttpRequest.Builder, authorization: String?): HttpRequest {
         authorization?.let { builder.header("Authorization", it) }
         return builder.build()
-    }
-
-    private companion object {
-        const val HTTP_OK = 200
-        const val HTTP_ACCEPTED = 202
-        const val HTTP_UNAUTHORIZED = 401
-        const val HTTP_FORBIDDEN = 403
-        const val HTTP_NOT_FOUND = 404
     }
 }
