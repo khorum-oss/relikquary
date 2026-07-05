@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-30
 
-**Status**: Draft
+**Status**: Implemented (shipped on main; see tasks.md status banner)
 
 **Input**: User description: "Redesign the Relikquary web UI to match the 'Artifact Sanctuary'
 design mockup in `frontend/planning/` (Relikquary UI.dc.html + support.js). Plan the full thing across
