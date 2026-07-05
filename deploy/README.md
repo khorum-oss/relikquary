@@ -299,6 +299,24 @@ The same images run against either **artifact** backend — no rebuild, just con
   Secret). In compose, drop the volume; in Kubernetes, remove the PVC and raise `replicas` (S3 is shared,
   the RWO PVC is not). See the commented blocks in `docker-compose.yml` and `k8s/relikquary.yaml`.
 
+## Container (OCI / Docker) registry
+
+Relikquary also serves **container images** under `/v2` for `docker` / `podman` / `nerdctl` (see the
+"Container (OCI / Docker) repositories" section in the [root README](../README.md) for the config and
+`push`/`pull` examples). Two deployment notes:
+
+- **`docker` refuses plain HTTP** except for `localhost`. Against a non-localhost deployment, either
+  front Relikquary with **TLS** (a reverse proxy terminating HTTPS in front of `:8080`), or add the host
+  to the daemon's insecure list in `/etc/docker/daemon.json`:
+
+  ```json
+  { "insecure-registries": ["relikquary.example.com:8080"] }
+  ```
+
+  then `systemctl restart docker`. `localhost:8080` works out of the box.
+- **Storage**: container blobs/manifests use the same backend as Maven artifacts (filesystem volume / S3
+  — see below), namespaced per repository; no extra configuration.
+
 ## Troubleshooting
 
 - **`port is already allocated` / address in use** — something else is on 8080/8081/5432. Stop it, or

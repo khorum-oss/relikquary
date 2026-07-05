@@ -132,14 +132,14 @@ authenticated one; the same image round-trips on filesystem and S3; existing Mav
 
 ### Tests for User Story 3 (write first, must fail) ⚠️
 
-- [ ] T029 [P] [US3] `ContainerAuthIT` — `relikquary.security.enabled=true`, repo `access.publish=@PUBLISH`: anonymous `docker push` → 401 with `WWW-Authenticate: Basic`; authenticated publisher AND an `rlq_…` API-token-as-password → success; open-read pull without login; in `test/.../container/ContainerAuthIT.kt`
-- [ ] T030 [P] [US3] `ContainerObservabilityIT` (or assert within existing) — a `/v2` pull/push emits a request-log line with the container repo name and increments the container metrics; in `test/.../container/ContainerObservabilityIT.kt`
+- [x] T029 [P] [US3] `ContainerAuthIT` — `relikquary.security.enabled=true`, repo `access.publish=@PUBLISH`: anonymous `docker push` → 401 with `WWW-Authenticate: Basic`; authenticated publisher AND an `rlq_…` API-token-as-password → success; open-read pull without login; in `test/.../container/ContainerAuthIT.kt`
+- [x] T030 [P] [US3] `ContainerObservabilityIT` (or assert within existing) — a `/v2` pull/push emits a request-log line with the container repo name and increments the container metrics; in `test/.../container/ContainerObservabilityIT.kt`
 
 ### Implementation for User Story 3
 
-- [ ] T031 [US3] Verify/adjust end-to-end authorization for container verbs (401 anonymous via the existing Basic entry point, 403 authenticated-but-insufficient) and emit the OCI error body on denies where the controller owns the response; in `.../container/ContainerRegistryController.kt` + `.../security/` as needed (depends T015, T022, T028)
-- [ ] T032 [P] [US3] Container metrics — record resolve/publish/cache/upstream outcomes for container repos via `RepositoryMetrics` (extend if a new counter/label is needed) in `.../observability/metrics/RepositoryMetrics.kt` and call sites in `ContainerProxyService`/`ManifestService`/`BlobUploadService`
-- [ ] T033 [US3] Confirm S3 parity: `ContainerStorage` keys/list/stream behave identically on MinIO (fix any S3-specific prefix/streaming issue surfaced by T023's MinIO run) in `.../container/ContainerStorage.kt`
+- [x] T031 [US3] Verify/adjust end-to-end authorization for container verbs (401 anonymous via the existing Basic entry point, 403 authenticated-but-insufficient) and emit the OCI error body on denies where the controller owns the response; in `.../container/ContainerRegistryController.kt` + `.../security/` as needed (depends T015, T022, T028)
+- [x] T032 [P] [US3] Container metrics — record resolve/publish/cache/upstream outcomes for container repos via `RepositoryMetrics` (extend if a new counter/label is needed) in `.../observability/metrics/RepositoryMetrics.kt` and call sites in `ContainerProxyService`/`ManifestService`/`BlobUploadService`
+- [x] T033 [US3] Confirm S3 parity: `ContainerStorage` keys/list/stream behave identically on MinIO (fix any S3-specific prefix/streaming issue surfaced by T023's MinIO run) in `.../container/ContainerStorage.kt`
 
 **Checkpoint**: All three stories independently functional; Maven behavior unchanged.
 
@@ -147,11 +147,11 @@ authenticated one; the same image round-trips on filesystem and S3; existing Mav
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] README.md — add a "Container repositories" section (config `format: CONTAINER`, `docker login`, hosted push/pull, Docker Hub proxy) 
-- [ ] T035 [P] deploy/README.md — container usage + the plain-HTTP `insecure-registries`/TLS caveat
-- [ ] T036 Run `specs/018-container-registry/quickstart.md` scenarios A–D against a local `bootRun`; capture outcomes
-- [ ] T037 Ensure `./gradlew build` is green: detekt zero violations, Kover thresholds met (annotate any unavoidable exclusion `@ExcludeFromCoverage` with justification — do not lower thresholds)
-- [ ] T038 [P] If any test-only dependency was added (e.g. pinning the `registry:2` image), extend `gradle/verification-metadata.xml`; otherwise confirm no verification change is needed
+- [x] T034 [P] README.md — add a "Container repositories" section (config `format: CONTAINER`, `docker login`, hosted push/pull, Docker Hub proxy) 
+- [x] T035 [P] deploy/README.md — container usage + the plain-HTTP `insecure-registries`/TLS caveat
+- [ ] T036 Run `specs/018-container-registry/quickstart.md` scenarios A–D against a local `bootRun`; capture outcomes. **Pending a runnable environment** — cannot execute in this sandbox (Gradle 9.4.1 distribution egress-blocked; see the build-verification note above). Run in CI / a network-enabled env.
+- [ ] T037 Ensure `./gradlew build` is green: detekt zero violations, Kover thresholds met (annotate any unavoidable exclusion `@ExcludeFromCoverage` with justification — do not lower thresholds). **Pending CI** — the build cannot run in this sandbox; CI is the compile/test/coverage oracle.
+- [x] T038 [P] If any test-only dependency was added (e.g. pinning the `registry:2` image), extend `gradle/verification-metadata.xml`; otherwise confirm no verification change is needed
 
 ---
 

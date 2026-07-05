@@ -2,15 +2,18 @@ package org.khorum.oss.relikquary.container
 
 import jakarta.servlet.http.HttpServletRequest
 import org.khorum.oss.relikquary.config.RepositoryProperties
+import org.khorum.oss.relikquary.observability.metrics.RepositoryMetrics
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Component
 
 /**
- * HTTP handling for a HOSTED container repository (feature 018, US2): `docker push` (blob uploads +
+ * HTTP handling for a HOSTED container repository (feature 018, US2/US3): `docker push` (blob uploads +
  * manifest PUT) and `docker pull` (manifest/blob/tags GET), plus manifest DELETE. Orchestrates
- * [BlobUploadService], [ManifestService], and [TagService], and builds the wire responses via
- * [OciResponses]/[OciPaths]. The controller delegates its HOSTED branches here.
+ * [BlobUploadService], [ManifestService], and [TagService]; builds the wire responses via
+ * [OciResponses]/[OciPaths]; and records publish/resolve outcomes on the shared [RepositoryMetrics]
+ * (feature 010) so container traffic shows up in the same meters as Maven. The controller delegates its
+ * HOSTED branches here.
  */
 @Component
 class ContainerHostedEndpoints(
@@ -18,11 +21,16 @@ class ContainerHostedEndpoints(
     private val tags: TagService,
     private val blobUploads: BlobUploadService,
     private val storage: ContainerStorage,
+    private val metrics: RepositoryMetrics,
 ) {
 
     /** GET/HEAD dispatch for a hosted repo. */
     fun read(repo: RepositoryProperties.Repo, ref: ImageReference): ResponseEntity<*> = when (ref.operation) {
-        ContainerOperation.MANIFEST -> OciResponses.manifest(manifests.get(repo.name, ref.imageName, ref.reference))
+        ContainerOperation.MANIFEST -> {
+            val outcome = manifests.get(repo.name, ref.imageName, ref.reference)
+            metrics.recordResolve(repo.name, if (outcome is ManifestOutcome.Found) "hit" else "miss")
+            OciResponses.manifest(outcome)
+        }
         ContainerOperation.BLOB -> blobResponse(repo.name, Digest.parse(ref.reference))
         ContainerOperation.TAGS_LIST ->
             OciResponses.tags(TagsOutcome.Found(OciPaths.tagsJson(ref.imageName, tags.list(repo.name, ref.imageName))))
@@ -50,6 +58,7 @@ class ContainerHostedEndpoints(
             "PUT" -> {
                 val mediaType = request.contentType ?: OCI_MANIFEST_TYPE
                 val digest = manifests.put(repo.name, ref.imageName, ref.reference, request.inputStream.readBytes(), mediaType)
+                metrics.recordPublish(repo.name, "accepted")
                 OciResponses.manifestCreated(OciPaths.manifestLocation(repo.name, ref.imageName, digest), digest)
             }
             "DELETE" ->
@@ -63,6 +72,7 @@ class ContainerHostedEndpoints(
             // Monolithic POST: the whole blob is in the body, verified against ?digest= immediately.
             val digest = Digest.parse(param)
             storage.writeBlobVerified(repo.name, digest, request.inputStream)
+            metrics.recordPublish(repo.name, "accepted")
             return OciResponses.blobCreated(OciPaths.blobLocation(repo.name, ref.imageName, digest), digest)
         }
         val mount = request.getParameter("mount")
@@ -77,7 +87,8 @@ class ContainerHostedEndpoints(
     private fun patchUpload(repo: RepositoryProperties.Repo, ref: ImageReference, request: HttpServletRequest): ResponseEntity<*> {
         val row = blobUploads.session(ref.reference) ?: return uploadUnknown()
         val received = blobUploads.append(row, request.inputStream)
-        return OciResponses.uploadProgress(OciPaths.uploadLocation(repo.name, ref.imageName, ref.reference), ref.reference, received)
+        val location = OciPaths.uploadLocation(repo.name, ref.imageName, ref.reference)
+        return OciResponses.uploadProgress(location, ref.reference, received)
     }
 
     private fun finishUpload(repo: RepositoryProperties.Repo, ref: ImageReference, request: HttpServletRequest): ResponseEntity<*> {
@@ -86,12 +97,15 @@ class ContainerHostedEndpoints(
         val digest = Digest.parse(param)
         val row = blobUploads.session(ref.reference) ?: return uploadUnknown()
         blobUploads.finalize(row, request.inputStream, digest)
+        metrics.recordPublish(repo.name, "accepted")
         return OciResponses.blobCreated(OciPaths.blobLocation(repo.name, ref.imageName, digest), digest)
     }
 
     private fun blobResponse(repository: String, digest: Digest): ResponseEntity<*> {
-        val stored = storage.readBlob(repository, digest) ?: return OciResponses.blob(BlobOutcome.NotFound)
-        return OciResponses.blob(BlobOutcome.Found(stored.stream, stored.sizeBytes, digest))
+        val stored = storage.readBlob(repository, digest)
+        metrics.recordResolve(repository, if (stored != null) "hit" else "miss")
+        return if (stored == null) OciResponses.blob(BlobOutcome.NotFound)
+        else OciResponses.blob(BlobOutcome.Found(stored.stream, stored.sizeBytes, digest))
     }
 
     private fun uploadStatus(repo: RepositoryProperties.Repo, ref: ImageReference): ResponseEntity<*> {
