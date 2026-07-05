@@ -14,6 +14,9 @@ import java.security.MessageDigest
  * trees never collide within one repository/backend, and are keyed by their `sha256` digest so identical
  * content is stored once and served byte-for-byte (Principle IV). Filesystem and S3 both work unchanged.
  */
+// Small, cohesive facade methods (key builders + read/write/delete for blobs & manifests); the count is
+// deliberate and readable, so the function-count rule is suppressed here rather than split artificially.
+@Suppress("TooManyFunctions")
 @Component
 class ContainerStorage(private val storage: ArtifactStorage) {
 
