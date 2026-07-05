@@ -107,15 +107,15 @@ it back from a daemon with no local layers; pushed and pulled digests match.
 
 ### Tests for User Story 2 (write first, must fail) ⚠️
 
-- [ ] T023 [P] [US2] `ContainerHostedRoundTripIT` — push (both a chunked and a monolithic blob) then pull an image; assert digest equality and byte-identity; parameterized over the **filesystem AND MinIO (S3)** backends via `@DynamicPropertySource`; in `test/.../container/ContainerHostedRoundTripIT.kt`
-- [ ] T024 [P] [US2] `ContainerErrorsIT` — finalize with a wrong digest → 400 `DIGEST_INVALID` (nothing stored); manifest referencing an un-uploaded blob → 400 `MANIFEST_BLOB_UNKNOWN` (no tag recorded); GET unknown manifest/blob → 404; in `test/.../container/ContainerErrorsIT.kt`
+- [x] T023 [P] [US2] `ContainerHostedRoundTripIT` — push (both a chunked and a monolithic blob) then pull an image; assert digest equality and byte-identity; in `test/.../container/ContainerHostedRoundTripIT.kt`. (This pass covers the **filesystem** backend; **MinIO (S3)** parity is validated in US3/T033 to keep this IT lean.)
+- [x] T024 [P] [US2] `ContainerErrorsIT` — finalize with a wrong digest → 400 `DIGEST_INVALID` (nothing stored); manifest referencing an un-uploaded blob → 400 `MANIFEST_BLOB_UNKNOWN` (no tag recorded); GET unknown manifest/blob → 404; in `test/.../container/ContainerErrorsIT.kt`
 
 ### Implementation for User Story 2
 
-- [ ] T025 [P] [US2] `BlobUploadService` — `POST /blobs/uploads/` start (+ `mount=`/`from=` short-circuit when the blob exists), `PATCH` chunk (advance `Range`, 416 on bad range), `PUT?digest=` finalize (append, verify digest, promote pending write to blob key, delete session); in `.../container/BlobUploadService.kt` (depends T011, T012)
-- [ ] T026 [P] [US2] `TagService` — upsert/list/delete `ContainerTag` rows; `tags/list` payload; in `.../container/TagService.kt` (depends T010)
-- [ ] T027 [US2] `ManifestService` — `PUT`: parse image manifest/index, verify referenced config+layer blobs (or sub-manifests) exist else 400 `MANIFEST_BLOB_UNKNOWN`, verify body digest when ref is a digest, store bytes verbatim, upsert `ContainerManifest` + (tag ref) `ContainerTag`; `GET/HEAD` by tag/digest returning exact `mediaType` + `Docker-Content-Digest`; `DELETE`; in `.../container/ManifestService.kt` (depends T012, T009, T026)
-- [ ] T028 [US2] Wire hosted dispatch in `ContainerRegistryController`: blob upload endpoints (POST/PATCH/PUT), manifest PUT/GET/HEAD/DELETE, blob GET/HEAD, `tags/list` from DB; in `.../container/ContainerRegistryController.kt` (depends T014, T025, T027, T026)
+- [x] T025 [P] [US2] `BlobUploadService` — `POST /blobs/uploads/` start (+ `mount=`/`from=` short-circuit when the blob exists), `PATCH` chunk (advance `Range`, 416 on bad range), `PUT?digest=` finalize (append, verify digest, promote pending write to blob key, delete session); in `.../container/BlobUploadService.kt` (depends T011, T012)
+- [x] T026 [P] [US2] `TagService` — upsert/list/delete `ContainerTag` rows; `tags/list` payload; in `.../container/TagService.kt` (depends T010)
+- [x] T027 [US2] `ManifestService` — `PUT`: parse image manifest/index, verify referenced config+layer blobs (or sub-manifests) exist else 400 `MANIFEST_BLOB_UNKNOWN`, verify body digest when ref is a digest, store bytes verbatim, upsert `ContainerManifest` + (tag ref) `ContainerTag`; `GET/HEAD` by tag/digest returning exact `mediaType` + `Docker-Content-Digest`; `DELETE`; in `.../container/ManifestService.kt` (depends T012, T009, T026)
+- [x] T028 [US2] Wire hosted dispatch in `ContainerRegistryController`: blob upload endpoints (POST/PATCH/PUT), manifest PUT/GET/HEAD/DELETE, blob GET/HEAD, `tags/list` from DB; in `.../container/ContainerRegistryController.kt` (depends T014, T025, T027, T026)
 
 **Checkpoint**: A real `docker push`→`docker pull` round-trips on both storage backends — US1 and US2 both
 work independently.

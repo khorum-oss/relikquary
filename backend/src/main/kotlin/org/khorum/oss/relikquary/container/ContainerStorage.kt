@@ -89,6 +89,9 @@ class ContainerStorage(private val storage: ArtifactStorage) {
         }
     }
 
+    /** Deletes the object at [key] (a blob or manifest key). Returns true if a file was removed. */
+    fun deleteObject(key: String): Boolean = storage.delete(key)
+
     private companion object {
         const val CONTAINER_PREFIX = "_container"
     }
