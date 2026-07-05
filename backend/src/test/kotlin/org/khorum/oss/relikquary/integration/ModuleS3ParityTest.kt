@@ -12,12 +12,13 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
+import software.amazon.awssdk.core.exception.SdkException
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
-import java.net.InetSocketAddress
+import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import java.net.ServerSocket
-import java.net.Socket
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -84,13 +85,12 @@ class ModuleS3ParityTest {
             val jar = System.getProperty("relikquary.s3mockJar") ?: error("relikquary.s3mockJar not set")
             process = ProcessBuilder("java", "-jar", jar, "--server.port=${freePort()}", "--http.port=$httpPort")
                 .redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start()
-            awaitPort(httpPort)
             S3Client.builder()
                 .endpointOverride(URI.create("http://127.0.0.1:$httpPort"))
                 .region(Region.US_EAST_1)
                 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("foo", "bar")))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
-                .build().use { it.createBucket { b -> b.bucket(BUCKET) } }
+                .build().use { awaitBucket(it) }
         }
 
         @AfterAll
@@ -115,18 +115,33 @@ class ModuleS3ParityTest {
 
         private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
+        /**
+         * Wait until s3mock is actually serving S3, not merely accepting TCP. s3mock (a Spring Boot app)
+         * accepts connections on its port before its context finishes booting; a request landing in that
+         * window is answered with `Connection reset`. So the readiness gate is the real operation we need
+         * next — bucket creation — retried while transient SDK errors mean "not ready yet". A bucket that
+         * already exists (a retry after a reset that succeeded server-side) also counts as ready. If the
+         * process dies (e.g. a bad jar), we fail fast instead of waiting out the whole deadline.
+         */
         @Suppress("SwallowedException")
-        private fun awaitPort(port: Int) {
+        private fun awaitBucket(client: S3Client) {
             val deadline = System.nanoTime() + java.time.Duration.ofSeconds(45).toNanos()
+            var lastError: Exception? = null
             while (System.nanoTime() < deadline) {
+                check(process.isAlive) { "s3mock process exited before becoming ready" }
                 try {
-                    Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), 500) }
+                    client.createBucket { b -> b.bucket(BUCKET) }
                     return
-                } catch (e: Exception) {
+                } catch (e: BucketAlreadyOwnedByYouException) {
+                    return
+                } catch (e: BucketAlreadyExistsException) {
+                    return
+                } catch (e: SdkException) {
+                    lastError = e
                     Thread.sleep(250)
                 }
             }
-            error("s3mock did not start listening on port $port")
+            throw IllegalStateException("s3mock did not become ready on port $httpPort", lastError)
         }
 
         private val WELL_FORMED = """

@@ -37,6 +37,10 @@ class ContainerProxyIT {
     private val client: HttpClient = HttpClient.newHttpClient()
 
     companion object {
+        const val HTTP_OK = 200
+        const val HTTP_METHOD_NOT_ALLOWED = 405
+        const val MANIFEST_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
+
         private val stub = StubOciRegistry().start()
 
         @TempDir
@@ -108,10 +112,4 @@ class ContainerProxyIT {
             HttpRequest.newBuilder(URI.create(base() + path)).GET().build(),
             HttpResponse.BodyHandlers.ofByteArray(),
         )
-
-    private companion object {
-        const val HTTP_OK = 200
-        const val HTTP_METHOD_NOT_ALLOWED = 405
-        const val MANIFEST_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
-    }
 }

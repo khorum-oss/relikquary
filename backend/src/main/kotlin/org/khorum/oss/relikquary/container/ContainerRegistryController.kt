@@ -27,8 +27,8 @@ private val logger = KotlinLogging.logger {}
  * the [ContainerProxyService] pull-through cache; a HOSTED container repo (push/pull) arrives in a later
  * slice (US2) and currently answers `501`. The bare `GET /v2/` version check advertises V2 support.
  *
- * `/v2/**` is a more specific mapping than the Maven controller's `/**`, so container requests never
- * disturb Maven serving.
+ * The `/v2` wildcard mapping is more specific than the Maven controller's catch-all `/` mapping, so
+ * container requests never disturb Maven serving.
  */
 @RestController
 class ContainerRegistryController(
