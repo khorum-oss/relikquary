@@ -150,6 +150,49 @@ at the root. The defaults are `releases` (immutable) and `snapshots` (overwritab
 
 Define repositories under `relikquary.repositories` (`{name, type}`); an unknown repo name returns 404.
 
+### Container (OCI / Docker) repositories
+
+Alongside Maven, Relikquary serves **container images** to an unmodified `docker` / `podman` / `nerdctl`
+client. A repository declares `format: container` and reuses the same `kind` axis:
+
+- **hosted** — accepts `docker push` and serves `docker pull`. Image blobs and manifests are stored
+  content-addressably by their `sha256` digest (byte-for-byte); tags are mutable pointers.
+- **proxy** — a read-only pull-through cache of an upstream registry (**Docker Hub** by default). On a
+  cache miss it performs Docker Hub's bearer-token handshake, normalizes official images to the
+  `library/` namespace, and caches the fetched digests locally. `docker push` to a proxy is rejected.
+
+```yaml
+relikquary:
+  repositories:
+    - name: containers          # host your own images
+      kind: hosted
+      format: container
+    - name: dockerhub           # pull-through cache of Docker Hub
+      kind: proxy
+      format: container
+      # remoteUrl defaults to https://registry-1.docker.io when omitted
+      # remoteUsername / remotePassword optional (higher rate limit / private images)
+```
+
+The registry is served under `/v2` (Docker Registry HTTP API V2). Push and pull:
+
+```bash
+# Pull a public image through the Docker Hub proxy (cached after the first pull):
+docker pull localhost:8080/dockerhub/library/alpine:3.20
+
+# Push your own image to a hosted repo, then pull it back:
+docker tag myapp:latest localhost:8080/containers/team/app:1.0
+docker push localhost:8080/containers/team/app:1.0
+docker pull  localhost:8080/containers/team/app:1.0
+```
+
+Container pull/push obey the same **per-repository authorization** as Maven (reads open by default,
+writes gated by the `PUBLISH` role) — `docker login localhost:8080` authenticates over HTTP Basic
+(a configured user, a managed user, or an `rlq_…` API token as the password). Images persist through
+the same configurable **storage backends** (filesystem or S3) and appear in the same request log and
+metrics. `docker` requires TLS or a `localhost`/insecure-registry host — see
+[`deploy/README.md`](deploy/README.md).
+
 ### Authoritative metadata (hosted repositories)
 
 For **hosted** repositories, Relikquary is the authority for `maven-metadata.xml`: after each publish it

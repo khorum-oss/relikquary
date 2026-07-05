@@ -1,0 +1,34 @@
+# Auth topology for the container registry authorization test (@ActiveProfiles("container-authz"), feature
+# 018 US3). Security is ON; a hosted container repo `containers` uses the default policy (reads open,
+# publish gated by the global PUBLISH role). Six fully-specified repos shadow the base application.yml list
+# by index so no base group leaks. The Docker Hub upstream is unused here.
+relikquary:
+  security:
+    enabled: true
+    users:
+      - username: publisher
+        password: "{noop}pw"
+        roles: [PUBLISH]
+      - username: reader
+        password: "{noop}pw"
+        roles: []
+  repositories:
+    - name: containers
+      kind: hosted
+      format: container
+    - name: dockerhub
+      kind: proxy
+      format: container
+      remoteUrl: ${RELIKQUARY_DOCKERHUB_URL:https://registry-1.docker.io}
+    - name: releases
+      kind: hosted
+      type: mixed
+    - name: snapshots
+      kind: hosted
+      type: snapshot
+    - name: mirror
+      kind: hosted
+      type: mixed
+    - name: plugins
+      kind: hosted
+      type: mixed

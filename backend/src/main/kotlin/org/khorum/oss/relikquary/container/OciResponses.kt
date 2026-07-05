@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity
 object OciResponses {
 
     const val DOCKER_DIGEST_HEADER = "Docker-Content-Digest"
+    const val DOCKER_UPLOAD_UUID_HEADER = "Docker-Upload-UUID"
 
     private val objectMapper = ObjectMapper()
 
@@ -47,6 +48,39 @@ object OciResponses {
         TagsOutcome.NotFound -> error(HttpStatus.NOT_FOUND, "NAME_UNKNOWN", "repository name not known")
         TagsOutcome.UpstreamError -> error(HttpStatus.BAD_GATEWAY, "UNSUPPORTED", "upstream registry error")
     }
+
+    /** 202 with the upload session's Location, uuid, and a zero Range — reply to `POST /blobs/uploads/`. */
+    fun uploadStarted(location: String, uuid: String): ResponseEntity<*> =
+        ResponseEntity.status(HttpStatus.ACCEPTED)
+            .header(HttpHeaders.LOCATION, location)
+            .header(DOCKER_UPLOAD_UUID_HEADER, uuid)
+            .header(HttpHeaders.RANGE, "0-0")
+            .build<Unit>()
+
+    /** 202 with the updated Range after a `PATCH` chunk. */
+    fun uploadProgress(location: String, uuid: String, received: Long): ResponseEntity<*> =
+        ResponseEntity.status(HttpStatus.ACCEPTED)
+            .header(HttpHeaders.LOCATION, location)
+            .header(DOCKER_UPLOAD_UUID_HEADER, uuid)
+            .header(HttpHeaders.RANGE, "0-${(received - 1).coerceAtLeast(0)}")
+            .build<Unit>()
+
+    /** 201 for a finalized blob or a mounted blob. */
+    fun blobCreated(location: String, digest: Digest): ResponseEntity<*> =
+        ResponseEntity.status(HttpStatus.CREATED)
+            .header(HttpHeaders.LOCATION, location)
+            .header(DOCKER_DIGEST_HEADER, digest.value)
+            .build<Unit>()
+
+    /** 201 for a stored manifest. */
+    fun manifestCreated(location: String, digest: Digest): ResponseEntity<*> =
+        ResponseEntity.status(HttpStatus.CREATED)
+            .header(HttpHeaders.LOCATION, location)
+            .header(DOCKER_DIGEST_HEADER, digest.value)
+            .build<Unit>()
+
+    /** 202 with no body — reply to a manifest DELETE. */
+    fun accepted(): ResponseEntity<*> = ResponseEntity.status(HttpStatus.ACCEPTED).build<Unit>()
 
     fun notImplemented(): ResponseEntity<*> =
         error(HttpStatus.NOT_IMPLEMENTED, "UNSUPPORTED", "hosted container repositories are not yet available")

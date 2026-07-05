@@ -24,8 +24,8 @@ private val logger = KotlinLogging.logger {}
  * The container registry (OCI Distribution / Docker Registry V2) surface under `/v2` (feature 018). The
  * first path segment after `/v2/` is the Relikquary repository name; the remainder is the OCI image name
  * plus the operation. Dispatches by the repository's format+kind: a PROXY container repo serves through
- * the [ContainerProxyService] pull-through cache; a HOSTED container repo (push/pull) arrives in a later
- * slice (US2) and currently answers `501`. The bare `GET /v2/` version check advertises V2 support.
+ * the [ContainerProxyService] pull-through cache; a HOSTED container repo serves `docker push`/`pull`
+ * through [ContainerHostedEndpoints]. The bare `GET /v2/` version check advertises V2 support.
  *
  * The `/v2` wildcard mapping is more specific than the Maven controller's catch-all `/` mapping, so
  * container requests never disturb Maven serving.
@@ -34,6 +34,7 @@ private val logger = KotlinLogging.logger {}
 class ContainerRegistryController(
     private val registry: RepositoryRegistry,
     private val proxy: ContainerProxyService,
+    private val hosted: ContainerHostedEndpoints,
 ) {
 
     @RequestMapping(path = ["/v2", "/v2/"], method = [RequestMethod.GET, RequestMethod.HEAD])
@@ -51,7 +52,7 @@ class ContainerRegistryController(
         val repo = requireContainerRepo(ref.repository)
         return when (repo.kind) {
             RepositoryKind.PROXY -> proxyRead(repo, ref)
-            RepositoryKind.HOSTED -> OciResponses.notImplemented()
+            RepositoryKind.HOSTED -> hosted.read(repo, ref)
             RepositoryKind.GROUP -> OciResponses.error(HttpStatus.NOT_FOUND, "NAME_UNKNOWN", "unknown repository")
         }
     }
@@ -66,7 +67,7 @@ class ContainerRegistryController(
         return when (repo.kind) {
             RepositoryKind.PROXY ->
                 OciResponses.error(HttpStatus.METHOD_NOT_ALLOWED, "UNSUPPORTED", "push to a proxy repository is not allowed")
-            RepositoryKind.HOSTED -> OciResponses.notImplemented()
+            RepositoryKind.HOSTED -> hosted.write(repo, ref, request)
             RepositoryKind.GROUP -> OciResponses.error(HttpStatus.NOT_FOUND, "NAME_UNKNOWN", "unknown repository")
         }
     }
@@ -107,6 +108,12 @@ class ContainerRegistryController(
     fun handleUnknownRepository(e: RepositoryNotFoundException): ResponseEntity<*> {
         logger.debug { "Rejected unknown container repository: ${e.message}" }
         return OciResponses.error(HttpStatus.NOT_FOUND, "NAME_UNKNOWN", e.message ?: "unknown repository")
+    }
+
+    @ExceptionHandler(ManifestBlobUnknownException::class)
+    fun handleManifestBlobUnknown(e: ManifestBlobUnknownException): ResponseEntity<*> {
+        logger.debug { "Rejected manifest with a missing reference: ${e.message}" }
+        return OciResponses.error(HttpStatus.BAD_REQUEST, "MANIFEST_BLOB_UNKNOWN", e.message ?: "referenced blob unknown")
     }
 
     private companion object {
