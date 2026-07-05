@@ -72,11 +72,11 @@ class ContainerAuthIT {
     private fun basic(user: String, password: String): String =
         "Basic " + Base64.getEncoder().encodeToString("$user:$password".toByteArray())
 
-    private fun get(path: String, authorization: String?): HttpResponse<Void> =
+    private fun get(path: String, authorization: String?): HttpResponse<*> =
         client.send(authorized(HttpRequest.newBuilder(URI.create(base() + path)).GET(), authorization),
             HttpResponse.BodyHandlers.discarding())
 
-    private fun post(path: String, authorization: String?): HttpResponse<Void> =
+    private fun post(path: String, authorization: String?): HttpResponse<*> =
         client.send(
             authorized(HttpRequest.newBuilder(URI.create(base() + path)).POST(HttpRequest.BodyPublishers.noBody()), authorization),
             HttpResponse.BodyHandlers.discarding(),

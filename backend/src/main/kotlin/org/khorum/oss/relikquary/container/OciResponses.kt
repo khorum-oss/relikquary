@@ -55,7 +55,7 @@ object OciResponses {
             .header(HttpHeaders.LOCATION, location)
             .header(DOCKER_UPLOAD_UUID_HEADER, uuid)
             .header(HttpHeaders.RANGE, "0-0")
-            .build<Void>()
+            .build<Unit>()
 
     /** 202 with the updated Range after a `PATCH` chunk. */
     fun uploadProgress(location: String, uuid: String, received: Long): ResponseEntity<*> =
@@ -63,24 +63,24 @@ object OciResponses {
             .header(HttpHeaders.LOCATION, location)
             .header(DOCKER_UPLOAD_UUID_HEADER, uuid)
             .header(HttpHeaders.RANGE, "0-${(received - 1).coerceAtLeast(0)}")
-            .build<Void>()
+            .build<Unit>()
 
     /** 201 for a finalized blob or a mounted blob. */
     fun blobCreated(location: String, digest: Digest): ResponseEntity<*> =
         ResponseEntity.status(HttpStatus.CREATED)
             .header(HttpHeaders.LOCATION, location)
             .header(DOCKER_DIGEST_HEADER, digest.value)
-            .build<Void>()
+            .build<Unit>()
 
     /** 201 for a stored manifest. */
     fun manifestCreated(location: String, digest: Digest): ResponseEntity<*> =
         ResponseEntity.status(HttpStatus.CREATED)
             .header(HttpHeaders.LOCATION, location)
             .header(DOCKER_DIGEST_HEADER, digest.value)
-            .build<Void>()
+            .build<Unit>()
 
     /** 202 with no body — reply to a manifest DELETE. */
-    fun accepted(): ResponseEntity<*> = ResponseEntity.status(HttpStatus.ACCEPTED).build<Void>()
+    fun accepted(): ResponseEntity<*> = ResponseEntity.status(HttpStatus.ACCEPTED).build<Unit>()
 
     fun notImplemented(): ResponseEntity<*> =
         error(HttpStatus.NOT_IMPLEMENTED, "UNSUPPORTED", "hosted container repositories are not yet available")
