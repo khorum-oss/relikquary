@@ -122,6 +122,8 @@ cd frontend && npm install && npm run dev                           # http://loc
 | `k8s/base/` | Kustomize **base** shared by every environment (ConfigMap + Deployments + Services + PVCs). No Secret — secrets come from 1Password. |
 | `k8s/overlays/stage/`, `k8s/overlays/prod/` | Per-environment **Kustomize overlays** — namespace, image tags, ingress host, sizing, and the 1Password secret sync. Apply with `kubectl apply -k`. |
 | `k8s/onepassword/` | 1Password Kubernetes Operator setup: `README.md` (install + item layout + rotation) and `create-items.sh` (generate the passwords into your vault). |
+| `argocd/` | **GitOps / continuous delivery** — ArgoCD `AppProject` + stage/prod `Application`s (app-of-apps) and a full guide in `README.md`. Stage auto-syncs; prod is gated. |
+| `pipeline/` | Local **pipeline** scripts you trigger by hand: `release.sh` (build → push → pin stage image → commit) and `promote.sh` (promote the stage image to prod). |
 | `k8s/relikquary-dev.yaml` | **Local dev** Kubernetes manifest — the k8s counterpart of `docker-compose.dev.yml`: auth off, throwaway creds, NodePort access, self-contained in the `relikquary-dev` namespace |
 | `dev-k8s.sh` | Helper for the dev k8s stack: `build` / `up` / `restart` / `status` / `down` / `deploy` |
 | `smoke.sh` | Docker-guarded build + publish/resolve smoke test |
@@ -249,7 +251,23 @@ operator's `autoRestart` on, the pods roll automatically.
 
 > **Images:** this project ships artifacts only (no registry push). Build the two images, push them to
 > your registry, and set the overlay `images:` `newName`/`newTag` accordingly (prod should use an
-> immutable, promoted tag — never a moving one).
+> immutable, promoted tag — never a moving one). The ArgoCD pipeline below automates exactly this.
+
+### Continuous delivery with ArgoCD (auto-deploy from a pipeline)
+
+To deploy automatically instead of running `kubectl apply -k` by hand, use the GitOps setup in
+[`argocd/`](argocd/README.md). ArgoCD watches this repo and reconciles the cluster; a local pipeline
+script you trigger makes git reflect each new build:
+
+```bash
+REGISTRY=registry.example.com deploy/pipeline/release.sh   # build → push → pin stage image → commit
+#   → ArgoCD auto-syncs STAGE
+
+deploy/pipeline/promote.sh && argocd app sync relikquary-prod   # promote that image to PROD (gated)
+```
+
+Stage auto-syncs on every release; prod only moves when you promote and sync. Full walkthrough (install
+ArgoCD, repo/registry access, rollback): [`argocd/README.md`](argocd/README.md).
 
 ### Local dev cluster (auth off)
 

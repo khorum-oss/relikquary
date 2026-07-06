@@ -1,0 +1,32 @@
+# STAGE Application — tracks deploy/k8s/overlays/stage and AUTO-SYNCS: every commit that bumps the stage
+# image (via deploy/pipeline/release.sh) rolls out on its own. selfHeal reverts manual drift; prune
+# removes resources deleted from git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: relikquary-stage
+  namespace: argocd
+spec:
+  project: relikquary
+  source:
+    repoURL: https://github.com/khorum-oss/relikquary.git
+    targetRevision: main            # branch ArgoCD watches; point at a dedicated deploy branch if you prefer
+    path: deploy/k8s/overlays/stage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: relikquary-stage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true        # plays nicely with kustomize + CRDs
+      - CreateNamespace=false        # the overlay already defines the Namespace
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2
+  # The operator-generated `relikquary-secrets` Secret is NOT in git, so ArgoCD never tracks or prunes it.
+  revisionHistoryLimit: 10
