@@ -18,9 +18,13 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    # argocd.hestia needs a hosts entry / local DNS; the *.nip.io host resolves publicly to the LAN IP
+    # so phones and other devices reach it with no per-device setup.
     - host: argocd.hestia
-      http:
+      http: &argocd
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: argocd-server, port: { number: 80 } } }
+    - host: argocd.192.168.50.206.nip.io
+      http: *argocd

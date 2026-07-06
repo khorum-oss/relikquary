@@ -13,15 +13,21 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    # *.hestia names need a hosts entry / local DNS. The *.nip.io names resolve publicly to the LAN IP
+    # (anything.<ip>.nip.io -> <ip>) so phones and other devices work with no per-device setup.
     - host: stage.hestia            # UI + API + Maven (frontend proxies /api and repo paths to backend)
-      http:
+      http: &stage_ui
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: relikquary-frontend, port: { number: 8080 } } }
+    - host: stage.192.168.50.206.nip.io
+      http: *stage_ui
     - host: stage-api.hestia        # direct to the backend (skips the SPA) — handy for CI/Maven clients
-      http:
+      http: &stage_api
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
+    - host: stage-api.192.168.50.206.nip.io
+      http: *stage_api
