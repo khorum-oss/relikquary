@@ -78,7 +78,10 @@ class DeploymentArtifactsTest {
     fun `no committed deployment artifact carries a real secret value`() {
         // Match an UPPERCASE env-style credential key being assigned a value (config files, not prose).
         val assignment = Regex("""\b[A-Z0-9_]*(?:PASSWORD|SECRET_KEY|ACCESS_KEY)\b\s*[:=]\s*(\S.*)""")
-        val placeholder = Regex("""\$\{|changeme""")
+        // A value is safe when it is not a committed literal: an env-var reference (`${VAR}`), a shell
+        // command substitution (`$(...)`, e.g. create-items.sh generating a password at runtime), or the
+        // explicit `changeme` marker. Anything else is a candidate real secret.
+        val placeholder = Regex("""\$\{|\$\(|changeme""")
         // Config artifacts only — skip markdown docs and the (excluded) smoke script.
         val files = deployDir.walkTopDown()
             .filter { it.isFile && it.extension != "md" && it.name != "smoke.sh" }

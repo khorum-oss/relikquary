@@ -118,7 +118,12 @@ cd frontend && npm install && npm run dev                           # http://loc
 | `frontend.Dockerfile` | UI image (SvelteKit SPA on non-root nginx; proxies API/repo paths to the backend) |
 | `combined.Dockerfile` | Single image serving API + UI (UI under `/ui`) |
 | `nginx/default.conf.template` | Frontend reverse-proxy config (`${RELIKQUARY_BACKEND}`) |
-| `k8s/relikquary.yaml` | Kubernetes manifest (backend + frontend + PostgreSQL) starting point, **auth on** |
+| `k8s/relikquary.yaml` | Single-file Kubernetes manifest (backend + frontend + PostgreSQL) starting point, **auth on** — hand-edit the Secret. For real environments, prefer the overlays below. |
+| `k8s/base/` | Kustomize **base** shared by every environment (ConfigMap + Deployments + Services + PVCs). No Secret — secrets come from 1Password. |
+| `k8s/overlays/stage/`, `k8s/overlays/prod/` | Per-environment **Kustomize overlays** — namespace, image tags, ingress host, sizing, and the 1Password secret sync. Apply with `kubectl apply -k`. |
+| `k8s/onepassword/` | 1Password Kubernetes Operator setup: `README.md` (install + item layout + rotation) and `create-items.sh` (generate the passwords into your vault). |
+| `argocd/` | **GitOps / continuous delivery** — ArgoCD `AppProject` + stage/prod `Application`s (app-of-apps) and a full guide in `README.md`. Stage auto-syncs; prod is gated. |
+| `pipeline/` | Local **pipeline** scripts you trigger by hand: `release.sh` (build → push → pin stage image → commit) and `promote.sh` (promote the stage image to prod). |
 | `k8s/relikquary-dev.yaml` | **Local dev** Kubernetes manifest — the k8s counterpart of `docker-compose.dev.yml`: auth off, throwaway creds, NodePort access, self-contained in the `relikquary-dev` namespace |
 | `dev-k8s.sh` | Helper for the dev k8s stack: `build` / `up` / `restart` / `status` / `down` / `deploy` |
 | `smoke.sh` | Docker-guarded build + publish/resolve smoke test |
@@ -197,6 +202,72 @@ the ConfigMap/Secret; an init container makes the backend wait for the database 
 `RELIKQUARY_DB_PASSWORD` Secret (shared by Postgres and the backend) before applying. To use embedded
 SQLite instead (single replica), set `RELIKQUARY_PERSISTENCE_BACKEND=sqlite` and `RELIKQUARY_DB_PATH` to a
 path on the data PVC in the ConfigMap, and delete the three `relikquary-postgres*` resources.
+
+The single-file manifest above is a quick starting point where you hand-edit the Secret. For **stage and
+prod**, use the Kustomize overlays below instead — they separate environments and pull secrets from
+1Password rather than committing placeholders.
+
+### Stage & prod (Kustomize overlays + 1Password)
+
+`k8s/base/` holds the shared resources; `k8s/overlays/stage/` and `k8s/overlays/prod/` layer on the
+per-environment differences. Each overlay lands in its own namespace (`relikquary-stage` /
+`relikquary-prod`), sets its own image tags and ingress host, and — crucially — carries **no secret
+values**. Passwords are generated in and managed by **1Password**, and the **1Password Kubernetes
+Operator** syncs them into a `relikquary-secrets` Secret in each namespace. Full walkthrough (operator
+install, item layout, rotation): [`k8s/onepassword/README.md`](k8s/onepassword/README.md).
+
+| Overlay | Namespace | Notes |
+|---------|-----------|-------|
+| `stage` | `relikquary-stage` | base sizing, `:stage` image tag, `relikquary.stage.example.com` |
+| `prod`  | `relikquary-prod`  | larger CPU/memory, 2 frontend replicas, bigger PVCs, `:stable` image tag, `relikquary.example.com` |
+
+**One-time cluster setup** — install the operator + 1Password Connect (see the onepassword README), then
+generate the passwords into your vaults:
+
+```bash
+op signin
+deploy/k8s/onepassword/create-items.sh stage      # generates + stores stage passwords in 1Password
+deploy/k8s/onepassword/create-items.sh prod       # …and prod, in a separate vault
+```
+
+**Deploy an environment.** Point the `images:` in the overlay's `kustomization.yaml` at your registry, set
+the ingress host, then:
+
+```bash
+kubectl apply -k deploy/k8s/overlays/stage        # or .../prod
+kubectl -n relikquary-stage rollout status deploy/relikquary-backend
+```
+
+Preview exactly what will be applied — no cluster needed — with `kubectl kustomize`:
+
+```bash
+kubectl kustomize deploy/k8s/overlays/prod        # renders the full manifest to stdout
+```
+
+The operator reconciles each `OnePasswordItem` into the `relikquary-secrets` Secret within a few seconds;
+if the backend pod starts first it waits in `CreateContainerConfigError` and recovers once the sync lands.
+To roll out a rotated password, edit it in 1Password (or `create-items.sh <env> --rotate`) — with the
+operator's `autoRestart` on, the pods roll automatically.
+
+> **Images:** this project ships artifacts only (no registry push). Build the two images, push them to
+> your registry, and set the overlay `images:` `newName`/`newTag` accordingly (prod should use an
+> immutable, promoted tag — never a moving one). The ArgoCD pipeline below automates exactly this.
+
+### Continuous delivery with ArgoCD (auto-deploy from a pipeline)
+
+To deploy automatically instead of running `kubectl apply -k` by hand, use the GitOps setup in
+[`argocd/`](argocd/README.md). ArgoCD watches this repo and reconciles the cluster; a local pipeline
+script you trigger makes git reflect each new build:
+
+```bash
+REGISTRY=registry.example.com deploy/pipeline/release.sh   # build → push → pin stage image → commit
+#   → ArgoCD auto-syncs STAGE
+
+deploy/pipeline/promote.sh && argocd app sync relikquary-prod   # promote that image to PROD (gated)
+```
+
+Stage auto-syncs on every release; prod only moves when you promote and sync. Full walkthrough (install
+ArgoCD, repo/registry access, rollback): [`argocd/README.md`](argocd/README.md).
 
 ### Local dev cluster (auth off)
 

@@ -1,0 +1,30 @@
+# PROD Application — tracks deploy/k8s/overlays/prod but is GATED: no `automated` block, so ArgoCD shows
+# the new revision as OutOfSync and waits. You promote deliberately (deploy/pipeline/promote.sh writes the
+# stage-tested image tag into the prod overlay), then release it with:
+#   argocd app sync relikquary-prod        # or click Sync in the ArgoCD UI
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: relikquary-prod
+  namespace: argocd
+spec:
+  project: relikquary
+  source:
+    repoURL: https://github.com/khorum-oss/relikquary.git
+    targetRevision: main
+    path: deploy/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: relikquary-prod
+  syncPolicy:
+    # No `automated:` ⇒ manual sync only (the gate). prune/selfHeal apply when you DO sync.
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        maxDuration: 3m
+        factor: 2
+  revisionHistoryLimit: 10

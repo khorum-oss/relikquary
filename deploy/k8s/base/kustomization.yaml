@@ -1,0 +1,21 @@
+# Shared base for every Relikquary environment. Do NOT apply this directly — it has no namespace and its
+# image tags are placeholders. Apply an overlay instead:
+#
+#   kubectl apply -k deploy/k8s/overlays/stage
+#   kubectl apply -k deploy/k8s/overlays/prod
+#
+# The base deliberately contains NO Secret: passwords/keys are synced from 1Password by the operator into
+# a `relikquary-secrets` Secret that the overlays declare (see deploy/k8s/onepassword/README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - configmap.yaml
+  - postgres.yaml
+  - backend.yaml
+  - frontend.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/name: relikquary
+    includeSelectors: false

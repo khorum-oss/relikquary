@@ -1,0 +1,32 @@
+# Stage ingress — routes the UI to the frontend and the API + Maven repository paths to the backend.
+# Set your ingressClassName and host, and add each Maven repository prefix you actually serve. TLS is
+# commented; wire it to your cert-manager issuer or an existing Secret.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: relikquary
+  annotations:
+    # cert-manager.io/cluster-issuer: letsencrypt-staging
+    {}
+spec:
+  # ingressClassName: nginx
+  rules:
+    - host: relikquary.stage.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
+          # Add each Maven repository prefix you serve (e.g. /releases, /snapshots, /public, /maven-central):
+          - path: /releases
+            pathType: Prefix
+            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
+          - path: /snapshots
+            pathType: Prefix
+            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: relikquary-frontend, port: { number: 8080 } } }
+  # tls:
+  #   - hosts: [relikquary.stage.example.com]
+  #     secretName: relikquary-stage-tls

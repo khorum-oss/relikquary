@@ -1,0 +1,26 @@
+# Optional "app-of-apps" root. Apply this ONE Application and ArgoCD manages the stage + prod Applications
+# from git (deploy/argocd/apps/) — add/change a child app by committing, not kubectl. Auto-synced so the
+# SET of apps stays in step with git; each child keeps its own sync policy (stage auto, prod gated).
+#   kubectl apply -n argocd -f deploy/argocd/root.yaml
+#
+# Prefer to manage the two apps directly? Skip this and `kubectl apply -f deploy/argocd/apps/` instead.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: relikquary
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/khorum-oss/relikquary.git
+    targetRevision: main
+    path: deploy/argocd/apps
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

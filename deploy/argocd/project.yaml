@@ -1,0 +1,26 @@
+# ArgoCD AppProject scoping Relikquary's stage + prod apps: which git repo they may deploy from and which
+# namespaces/resources they may touch. Apply into the argocd namespace:
+#   kubectl apply -n argocd -f deploy/argocd/project.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: relikquary
+  namespace: argocd
+spec:
+  description: Relikquary stage + prod deployments
+  # Only this repository may be a source. Replace if you deploy from a fork/mirror or a separate config repo.
+  sourceRepos:
+    - https://github.com/khorum-oss/relikquary.git
+  # Only these namespaces on the local cluster are valid destinations.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: relikquary-stage
+    - server: https://kubernetes.default.svc
+      namespace: relikquary-prod
+  # The overlays create their own Namespace (cluster-scoped) — allow it. Everything else is namespaced.
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
