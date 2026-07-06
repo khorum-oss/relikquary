@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LaunchDaemon: re-load the pf ruleset (with the :80 -> :30080 ingress redirect) at every boot.
+     Install:  sudo cp com.hestia.ingress-redirect.plist /Library/LaunchDaemons/
+               sudo launchctl load -w /Library/LaunchDaemons/com.hestia.ingress-redirect.plist -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hestia.ingress-redirect</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/sbin/pfctl</string>
+        <string>-ef</string>
+        <string>/etc/pf-hestia.conf</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>/var/log/hestia-ingress-redirect.log</string>
+</dict>
+</plist>
