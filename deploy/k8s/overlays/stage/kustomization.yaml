@@ -1,0 +1,30 @@
+# STAGE overlay — apply with:  kubectl apply -k deploy/k8s/overlays/stage
+#
+# Everything lands in the `relikquary-stage` namespace. Secrets are synced from 1Password (see
+# secrets.onepassword.yaml). Point the images at wherever you push them and set the ingress host.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: relikquary-stage
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - secrets.onepassword.yaml
+  - ingress.yaml
+
+# Build + push env-specific tags (e.g. from CI on the main branch) and set them here. Edit newName to
+# your registry/repository. Stage uses defaults from the base for replicas/resources.
+images:
+  - name: relikquary-backend
+    newName: registry.example.com/relikquary-backend
+    newTag: stage
+  - name: relikquary-frontend
+    newName: registry.example.com/relikquary-frontend
+    newTag: stage
+
+# Tag everything so `kubectl get all -l relikquary.khorum.io/env=stage` scopes to this environment.
+labels:
+  - pairs:
+      relikquary.khorum.io/env: stage
+    includeSelectors: false

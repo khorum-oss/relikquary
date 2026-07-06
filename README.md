@@ -78,6 +78,11 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 Both storage backends (filesystem volume / S3) are selectable by configuration with no rebuild. See
 [`deploy/README.md`](deploy/README.md) for Kubernetes, the combined image, and storage options.
 
+For **stage and prod on Kubernetes**, `deploy/k8s/` ships Kustomize overlays (`overlays/stage`,
+`overlays/prod`) over a shared base, with passwords generated in and synced from **1Password** via the
+1Password Kubernetes Operator — no secrets in git (`kubectl apply -k deploy/k8s/overlays/prod`). See
+[`deploy/k8s/onepassword/README.md`](deploy/k8s/onepassword/README.md).
+
 ### Run with authentication (publishing requires credentials)
 
 By default, authentication is **on**: resolving stays open, but publishing requires a configured user

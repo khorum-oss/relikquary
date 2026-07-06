@@ -1,0 +1,62 @@
+# Production sizing — bigger resource envelopes and a second (stateless) frontend replica. The backend
+# stays at a single replica because its artifact PVC is ReadWriteOnce; switch storage to S3 to scale it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relikquary-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: backend
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relikquary-postgres
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relikquary-frontend
+spec:
+  replicas: 2
+---
+# Larger volumes for prod. Note: PVC size is set at creation; growing later needs an expandable
+# StorageClass (allowVolumeExpansion: true) and only ever increases.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: relikquary-data
+spec:
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: relikquary-postgres-data
+spec:
+  resources:
+    requests:
+      storage: 20Gi

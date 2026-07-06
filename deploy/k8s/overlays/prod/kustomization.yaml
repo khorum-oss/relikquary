@@ -1,0 +1,34 @@
+# PROD overlay — apply with:  kubectl apply -k deploy/k8s/overlays/prod
+#
+# Everything lands in the `relikquary-prod` namespace. Secrets are synced from 1Password (see
+# secrets.onepassword.yaml). Point the images at wherever you push them and set the ingress host.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: relikquary-prod
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - secrets.onepassword.yaml
+  - ingress.yaml
+
+# Production sizing (resources, replicas, PVC sizes) over the base defaults.
+patches:
+  - path: scale.yaml
+
+# Pin prod to an immutable, promoted tag — never a moving tag like `latest`. Edit newName to your
+# registry/repository; bump newTag to roll out a release.
+images:
+  - name: relikquary-backend
+    newName: registry.example.com/relikquary-backend
+    newTag: stable
+  - name: relikquary-frontend
+    newName: registry.example.com/relikquary-frontend
+    newTag: stable
+
+# Tag everything so `kubectl get all -l relikquary.khorum.io/env=prod` scopes to this environment.
+labels:
+  - pairs:
+      relikquary.khorum.io/env: prod
+    includeSelectors: false

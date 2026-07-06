@@ -1,0 +1,64 @@
+# Frontend (UI). Stateless nginx SPA that proxies /api and the Maven repository paths to the backend
+# Service. Safe to run more than one replica (see the prod overlay).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relikquary-frontend
+  labels:
+    app.kubernetes.io/name: relikquary
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: relikquary
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: relikquary
+        app.kubernetes.io/component: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: frontend
+          image: relikquary-frontend:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: RELIKQUARY_BACKEND
+              value: "http://relikquary-backend:8080"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relikquary-frontend
+spec:
+  selector:
+    app.kubernetes.io/name: relikquary
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

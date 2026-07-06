@@ -1,0 +1,99 @@
+# PostgreSQL for application state (tokens/users/settings/publish history). The password is the
+# `RELIKQUARY_DB_PASSWORD` key of the 1Password-synced `relikquary-secrets` Secret — the same key the
+# backend reads, so the two always agree. Delete these resources (and the init container in backend.yaml)
+# if you switch the backend to embedded SQLite.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: relikquary-postgres-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relikquary-postgres
+  labels:
+    app.kubernetes.io/name: relikquary
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: relikquary
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: relikquary
+        app.kubernetes.io/component: postgres
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # the alpine postgres user
+        fsGroup: 70
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "relikquary"
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: relikquary-config
+                  key: RELIKQUARY_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: relikquary-secrets
+                  key: RELIKQUARY_DB_PASSWORD
+            # Sub-directory so the volume mount root isn't the data directory.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "relikquary", "-d", "relikquary"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "relikquary", "-d", "relikquary"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: relikquary-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relikquary-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: relikquary
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
