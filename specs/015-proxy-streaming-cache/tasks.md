@@ -99,7 +99,7 @@ second full read of the just-written key in the same request.
 - [X] T020 [P] Verify Kover coverage includes the tee commit and abort branches, both `openWrite` implementations, and the disconnect/truncation paths; annotate any justified exclusion with `@ExcludeFromCoverage` rather than lowering thresholds.
 - [X] T021 Run the proxy/group regression suite — `ProxyResolveTest`, `ProxyRoundTripTest`, `GroupResolveTest`, `ProxyEvictionTest`, `ProxyCentralIT`, `GradleModuleProxyRoundTripTest`, `GradlePluginsProxyResolveTest` — and confirm all stay green (hit/miss/error and group first-match semantics unchanged, FR-010).
 - [X] T022 Run `./gradlew :backend:build` and confirm green (compile + detekt + Kover + tests).
-- [ ] T023 [P] Manual smoke per `specs/015-proxy-streaming-cache/quickstart.md` against a running sandbox-profile server: cold-cache `time_starttransfer` near upstream TTFB, byte-identity vs upstream checksum, and a second resolve served from cache.
+- [x] T023 [P] Automated (was manual) smoke — real Maven Central path in `ProxyStreamingRealCentralIT` (guarded, auto-skips offline); original manual per `specs/015-proxy-streaming-cache/quickstart.md` against a running sandbox-profile server: cold-cache `time_starttransfer` near upstream TTFB, byte-identity vs upstream checksum, and a second resolve served from cache.
 - [X] T024 [P] Update `specs/015-proxy-streaming-cache/spec.md` Status to reflect implementation and note any deviations discovered during build.
 
 ---
