@@ -11,7 +11,11 @@ plugins {
 group = "org.khorum.oss.relikquary"
 
 dependencies {
+    // Aggregate coverage from both the backend's own tests and the integration-tests module's tests over
+    // backend's classes into the single root Kover report, so pulling the integration tests into their own
+    // module does not drop the coverage they contribute.
     kover(project(":backend"))
+    kover(project(":integration-tests"))
 }
 
 sonar {
@@ -19,9 +23,10 @@ sonar {
         property("sonar.projectKey", "khorum-relikquary")
         property("sonar.organization", "khorum-oss")
         property("sonar.host.url", "https://sonarcloud.io")
+        // The aggregated (root) Kover report — includes coverage from the integration-tests module.
         property(
             "sonar.coverage.jacoco.xmlReportPaths",
-            "${project(":backend").layout.buildDirectory.get()}/reports/kover/report.xml",
+            "${layout.buildDirectory.get()}/reports/kover/report.xml",
         )
     }
 }
