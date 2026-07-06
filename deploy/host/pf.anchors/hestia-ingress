@@ -1,0 +1,6 @@
+# pf rdr rules: send inbound HTTP on the mini's ports 80/443 to the colima-forwarded ingress-nginx
+# NodePorts (30080/30443). colima/lima will not forward privileged ports (<1024) to the host, so pf does
+# the hop. lima already listens on *:30080, so redirecting to 127.0.0.1:30080 reaches the ingress.
+rdr pass inet proto tcp from any to any port 80  -> 127.0.0.1 port 30080
+# Uncomment once you put TLS on the ingress (or front it with Cloudflare):
+# rdr pass inet proto tcp from any to any port 443 -> 127.0.0.1 port 30443

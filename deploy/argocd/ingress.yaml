@@ -1,0 +1,31 @@
+# ArgoCD ingress (host-based, plain HTTP for LAN use).
+#
+# Prereq: argocd-server must run in INSECURE mode so it speaks HTTP behind the ingress instead of its own
+# self-signed TLS. Set it once on the ArgoCD install and restart:
+#
+#   kubectl -n argocd patch cm argocd-cmd-params-cm --type merge -p '{"data":{"server.insecure":"true"}}'
+#   kubectl -n argocd rollout restart deploy/argocd-server
+#
+# (This is also the right posture for later fronting ArgoCD with Cloudflare, which terminates TLS itself.)
+# The ArgoCD CLI talks gRPC — if it misbehaves through the proxy, log in with:  argocd login argocd.hestia --grpc-web --insecure
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"      # HTTP only on the LAN
+spec:
+  ingressClassName: nginx
+  rules:
+    # argocd.hestia needs a hosts entry / local DNS; the *.nip.io host resolves publicly to the LAN IP
+    # so phones and other devices reach it with no per-device setup. LAN_IP is a placeholder — render it
+    # with deploy/host/render-lan-ip.sh before applying (left as-is the .nip.io rule is inert).
+    - host: argocd.hestia
+      http: &argocd
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: argocd-server, port: { number: 80 } } }
+    - host: argocd.LAN_IP.nip.io
+      http: *argocd
