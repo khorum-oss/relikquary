@@ -10,6 +10,13 @@ plugins {
 
 group = "org.khorum.oss.relikquary"
 
+// The root project resolves the Kover reporter/agent artifacts for the aggregated :koverXmlReport, so it
+// needs a repository too (subprojects declare their own). The artifacts are already pinned in
+// gradle/verification-metadata.xml via the backend module's Kover run.
+repositories {
+    mavenCentral()
+}
+
 dependencies {
     // Aggregate coverage from both the backend's own tests and the integration-tests module's tests over
     // backend's classes into the single root Kover report, so pulling the integration tests into their own
