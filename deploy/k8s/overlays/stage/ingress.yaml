@@ -13,23 +13,24 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    # *.hestia names need a hosts entry / local DNS. The *.nip.io names resolve publicly to the LAN IP
-    # (anything.<ip>.nip.io -> <ip>) so phones and other devices work with no per-device setup.
-    # LAN_IP is a placeholder — substitute your host's LAN IP with deploy/host/render-lan-ip.sh before
-    # applying. Left as-is, the .nip.io rules are inert (they never resolve); the *.hestia rules work.
-    - host: stage.hestia            # UI + API + Maven (frontend proxies /api and repo paths to backend)
+    # `lan-domain` (your chosen host suffix, e.g. `home`) and `lan-ip` (the host's LAN IP) are
+    # placeholders — fill both in with deploy/host/render-lan-ip.sh before applying. *.<domain> names
+    # need a hosts entry / local DNS; the *.nip.io names resolve publicly to the LAN IP
+    # (anything.<ip>.nip.io -> <ip>) so phones and other devices work with no per-device setup. Left
+    # unrendered these hosts never resolve, but the manifest is valid and applies cleanly.
+    - host: stage.lan-domain            # UI + API + Maven (frontend proxies /api and repo paths to backend)
       http: &stage_ui
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: relikquary-frontend, port: { number: 8080 } } }
-    - host: stage.LAN_IP.nip.io
+    - host: stage.lan-ip.nip.io
       http: *stage_ui
-    - host: stage-api.hestia        # direct to the backend (skips the SPA) — handy for CI/Maven clients
+    - host: stage-api.lan-domain        # direct to the backend (skips the SPA) — handy for CI/Maven clients
       http: &stage_api
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
-    - host: stage-api.LAN_IP.nip.io
+    - host: stage-api.lan-ip.nip.io
       http: *stage_api
