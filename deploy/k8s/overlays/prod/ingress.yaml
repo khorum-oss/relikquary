@@ -1,32 +1,36 @@
-# Prod ingress — routes the UI to the frontend and the API + Maven repository paths to the backend.
-# Set your ingressClassName and host, and add each Maven repository prefix you actually serve. TLS is
-# commented; wire it to your cert-manager issuer or an existing Secret.
+# Prod ingress (host-based). The frontend image is a smart reverse proxy: it serves the SPA and proxies
+# the API (/api/...) and every Maven repository path to the backend, same-origin — so the primary host
+# points entirely at the frontend and needs no per-path rules. A second host routes straight to the
+# backend as an escape hatch for tooling that should bypass the SPA. Plain HTTP (no TLS) for LAN use;
+# reach it via the ingress-nginx NodePort (colima forwards it on the LAN) or the :80 pf redirect.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: relikquary
   annotations:
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
-    {}
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"      # HTTP only on the LAN — don't 308 to HTTPS
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"       # large artifact uploads (Maven/OCI)
 spec:
-  # ingressClassName: nginx
+  ingressClassName: nginx
   rules:
-    - host: relikquary.example.com
-      http:
+    # `lan-domain` (your chosen host suffix, e.g. `home`) and `lan-ip` (the host's LAN IP) are
+    # placeholders — fill both in with deploy/host/render-lan-ip.sh before applying. *.<domain> names
+    # need a hosts entry / local DNS; the *.nip.io names resolve publicly to the LAN IP
+    # (anything.<ip>.nip.io -> <ip>) so phones and other devices work with no per-device setup. Left
+    # unrendered these hosts never resolve, but the manifest is valid and applies cleanly.
+    - host: prod.lan-domain             # UI + API + Maven (frontend proxies /api and repo paths to backend)
+      http: &prod_ui
         paths:
-          - path: /api
-            pathType: Prefix
-            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
-          # Add each Maven repository prefix you serve (e.g. /releases, /snapshots, /public, /maven-central):
-          - path: /releases
-            pathType: Prefix
-            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
-          - path: /snapshots
-            pathType: Prefix
-            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
           - path: /
             pathType: Prefix
             backend: { service: { name: relikquary-frontend, port: { number: 8080 } } }
-  # tls:
-  #   - hosts: [relikquary.example.com]
-  #     secretName: relikquary-prod-tls
+    - host: prod.lan-ip.nip.io
+      http: *prod_ui
+    - host: prod-api.lan-domain         # direct to the backend (skips the SPA) — handy for CI/Maven clients
+      http: &prod_api
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: relikquary-backend, port: { number: 8080 } } }
+    - host: prod-api.lan-ip.nip.io
+      http: *prod_api
