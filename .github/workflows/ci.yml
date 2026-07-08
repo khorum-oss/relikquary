@@ -29,7 +29,7 @@ jobs:
       # Backend unit/integration build + the separate integration-tests module + the aggregated Kover
       # report (for Sonar). Run without --parallel so module test tasks stay sequential (runner limits).
       - name: Build (compile, detekt, tests, coverage, dependency verification)
-        run: ./gradlew :backend:build :integration-tests:build :koverXmlReport --no-daemon --stacktrace
+        run: ./gradlew :backend:build :integration-tests:build :koverXmlReport -Pdependency.env=public --no-daemon --stacktrace
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,7 +82,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Build backend bootJar
-        run: ./gradlew :backend:bootJar --no-daemon --stacktrace
+        run: ./gradlew :backend:bootJar -Pdependency.env=public --no-daemon --stacktrace
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci

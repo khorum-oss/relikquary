@@ -1,6 +1,6 @@
 pluginManagement {
     repositories {
-        val usePublic = providers.gradleProperty("dependency.use.public").orNull == "true"
+        val usePublic = providers.gradleProperty("dependency.env").orNull == "public"
 
         if (usePublic) {
             gradlePluginPortal()
