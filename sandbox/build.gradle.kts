@@ -26,20 +26,20 @@ repositories {
     // Use the `public` group repo (releases + the maven-central proxy) — NOT `snapshots`, which is a
     // plain store with no upstream and would 404 every transitive dependency. Port 8081 = the running
     // relikquary (docker-compose dev, or the k8s dev cluster's fixed LoadBalancer port).
-    maven {
-        name = "relikquary-public"
-        url = uri("http://localhost:8081/public")
-        isAllowInsecureProtocol = true
-    }
-    maven {
-        name = "relikquary-snapshots"
-        url = uri("http://localhost:8081/snapshots")
-        isAllowInsecureProtocol = true
-    }
-    // Maven Central is a fallback by default. Set DISABLE_MAVEN_CENTRAL=true to remove it and FORCE every
-    // dependency through relikquary above (proves the proxy/cache is actually serving them).
-    val disableMavenCentral = System.getenv("DISABLE_MAVEN_CENTRAL")?.toBoolean() ?: false
-    if (!disableMavenCentral) mavenCentral()
+//    maven {
+//        name = "relikquary-public"
+//        url = uri("http://localhost:8081/public")
+//        isAllowInsecureProtocol = true
+//    }
+//    maven {
+//        name = "relikquary-snapshots"
+//        url = uri("http://localhost:8081/snapshots")
+//        isAllowInsecureProtocol = true
+//    }
+//    // Maven Central is a fallback by default. Set DISABLE_MAVEN_CENTRAL=true to remove it and FORCE every
+//    // dependency through relikquary above (proves the proxy/cache is actually serving them).
+//    val disableMavenCentral = System.getenv("DISABLE_MAVEN_CENTRAL")?.toBoolean() ?: false
+//    if (!disableMavenCentral) mavenCentral()
 }
 
 dependencies {
