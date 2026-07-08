@@ -14,7 +14,9 @@ group = "org.khorum.oss.relikquary"
 // needs a repository too (subprojects declare their own). The artifacts are already pinned in
 // gradle/verification-metadata.xml via the backend module's Kover run.
 repositories {
-    mavenCentral()
+    val usePublic = providers.gradleProperty("dependency.env").orNull == "public"
+
+    if (usePublic) mavenCentral()
 }
 
 dependencies {
