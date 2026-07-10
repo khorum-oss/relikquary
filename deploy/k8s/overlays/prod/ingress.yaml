@@ -8,10 +8,22 @@ kind: Ingress
 metadata:
   name: relikquary
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"      # HTTP only on the LAN — don't 308 to HTTPS
+    # TLS from the internal CA (cert-manager issues relikquary-tls from the `hestia-ca` ClusterIssuer).
+    # Serve HTTPS on the ingress https NodePort (:30443); keep ssl-redirect OFF so plain HTTP on :30080
+    # still works — under NodePort a 308 would redirect to :443 (no listener) and dead-end. Trust the CA
+    # per ops/reference/tls-device-trust.md to get a valid lock.
+    cert-manager.io/cluster-issuer: hestia-ca
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"      # HTTP :30080 stays; HTTPS on :30443 — don't 308 (NodePort has no :443)
     nginx.ingress.kubernetes.io/proxy-body-size: "0"       # large artifact uploads (Maven/OCI)
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - prod.lan-domain
+        - prod.lan-ip.nip.io
+        - prod-api.lan-domain
+        - prod-api.lan-ip.nip.io
+      secretName: relikquary-tls
   rules:
     # `lan-domain` (your chosen host suffix, e.g. `home`) and `lan-ip` (the host's LAN IP) are
     # placeholders — fill both in with deploy/host/render-lan-ip.sh before applying. *.<domain> names

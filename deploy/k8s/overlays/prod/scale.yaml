@@ -41,8 +41,11 @@ metadata:
 spec:
   replicas: 2
 ---
-# Larger volumes for prod. Note: PVC size is set at creation; growing later needs an expandable
-# StorageClass (allowVolumeExpansion: true) and only ever increases.
+# PVC sizes match the live cluster's default `local-path` StorageClass (10Gi), which has NO expansion
+# (allowVolumeExpansion unset) and does NOT enforce the request as a quota — pods can already use the full
+# node disk (~98GB Colima VM). So bigger numbers here are fiction (and cause ArgoCD SyncFailed on the
+# forbidden resize — see hestia-systems HS-10). To truly grow: migrate to an expandable StorageClass
+# (e.g. Longhorn) or grow the Colima VM disk — not a size bump here.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -50,7 +53,7 @@ metadata:
 spec:
   resources:
     requests:
-      storage: 50Gi
+      storage: 10Gi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -59,4 +62,4 @@ metadata:
 spec:
   resources:
     requests:
-      storage: 20Gi
+      storage: 10Gi
