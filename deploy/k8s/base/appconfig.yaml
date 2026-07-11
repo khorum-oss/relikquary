@@ -1,0 +1,37 @@
+# Deploy-layer Spring config mounted at /config/ (loaded via SPRING_CONFIG_ADDITIONAL_LOCATION in
+# configmap.yaml). It defines the repository set for the cluster deployment, which OVERRIDES the app image's
+# packaged `application.yml` list (Spring config-file lists replace, they do not merge). We keep this in the
+# deploy layer — rather than baking a `containers` repo into the app image — so no rebuild is needed to add
+# an OCI/Docker registry alongside Maven.
+#
+# NOTE (duplication): the six Maven defaults below mirror the app's `application.yml`. If the app changes its
+# default repo set, update this list too. Placeholders resolve from the relikquary-config ConfigMap env vars.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relikquary-appconfig
+data:
+  application.yml: |
+    relikquary:
+      repositories:
+        - name: releases
+          type: release
+        - name: snapshots
+          type: snapshot
+        - name: maven-central
+          kind: proxy
+          remoteUrl: ${RELIKQUARY_MAVEN_CENTRAL_URL:https://repo1.maven.org/maven2}
+        - name: gradle-plugins
+          kind: proxy
+          remoteUrl: ${RELIKQUARY_GRADLE_PLUGIN_PORTAL_URL:https://plugins.gradle.org/m2/}
+        - name: public
+          kind: group
+          members: [releases, maven-central, gradle-plugins]
+        - name: plugins
+          kind: group
+          members: [gradle-plugins, maven-central]
+        # OCI / Docker registry (feature 018). Push env-scoped image names so blobs land under
+        # v2/containers/<env>/… in the shared Space: <host>/containers/{prod,stage}/<image>:<tag>.
+        - name: containers
+          format: CONTAINER
+          kind: HOSTED
