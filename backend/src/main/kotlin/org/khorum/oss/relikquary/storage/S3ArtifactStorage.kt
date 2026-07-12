@@ -32,6 +32,10 @@ import java.nio.file.StandardCopyOption
  * class's public API is "logical" (prefix-free), so callers — and objects returned by [walk]/[list] — never
  * see the prefix and can round-trip keys straight back into the store.
  */
+// The ArtifactStorage contract methods plus the small logical<->physical prefix helpers; the count is a
+// cohesive storage facade, so the function-count rule is suppressed here rather than split artificially
+// (mirrors ContainerStorage's suppression, and does not lower the global detekt threshold).
+@Suppress("TooManyFunctions")
 @Component
 @ConditionalOnProperty(name = ["relikquary.storage.backend"], havingValue = "s3")
 class S3ArtifactStorage(
