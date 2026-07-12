@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Per-user UI preferences (feature 019): the web theme choice (a named preset plus an optional custom
+     accent colour), persisted per authenticated principal so it follows the user across devices/browsers.
+     Keyed by username (not a FK to managed_user) so it works for BOTH config-defined and managed users. -->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="003-user-preference" author="relikquary">
+        <createTable tableName="user_preference">
+            <column name="username" type="VARCHAR(200)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="theme" type="VARCHAR(2000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <modifySql dbms="sqlite">
+            <replace replace="TEXT" with="timestamp"/>
+        </modifySql>
+    </changeSet>
+</databaseChangeLog>

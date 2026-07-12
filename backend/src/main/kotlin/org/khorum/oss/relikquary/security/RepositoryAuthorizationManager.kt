@@ -41,6 +41,10 @@ class RepositoryAuthorizationManager(
         if (path == MANAGEMENT_CLEANUP || path.startsWith(MANAGEMENT_ADMIN_PREFIX)) {
             return AuthorizationDecision(authorizer.permitsManagement(authentication.get()))
         }
+        if (path.startsWith(SELF_PREFERENCES_PREFIX)) {
+            // The signed-in user's own preferences (feature 019): any authenticated principal, no role.
+            return AuthorizationDecision(authorizer.permitsAuthenticated(authentication.get()))
+        }
         val target = target(context.request) ?: return GRANT
         val repo = repoOrNull(target.repoName) ?: return GRANT
         if (repo.kind == RepositoryKind.GROUP) return GRANT
@@ -120,5 +124,8 @@ class RepositoryAuthorizationManager(
 
         /** Admin surface (tokens, and later users/settings) — global PUBLISH authority (feature 016). */
         const val MANAGEMENT_ADMIN_PREFIX = "api/admin"
+
+        /** The signed-in user's own preferences — any authenticated principal (feature 019). */
+        const val SELF_PREFERENCES_PREFIX = "api/me"
     }
 }

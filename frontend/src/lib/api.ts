@@ -110,6 +110,33 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** The signed-in user's UI theme (feature 019): a preset name plus an optional `#rrggbb` accent. */
+export interface ThemePreference {
+  preset: string;
+  accent: string | null;
+}
+
+/** The current user's saved theme, or null if they have not chosen one (or the request is anonymous). */
+export async function getMyPreferences(): Promise<ThemePreference | null> {
+  const res = await fetch('/api/me/preferences', authed());
+  if (res.status === 401) return null;
+  if (!res.ok) throw new ApiError(res.status);
+  const body = (await res.json()) as { theme: ThemePreference | null };
+  return body.theme;
+}
+
+/** Persists the current user's theme; returns null (not persisted) when the request is anonymous. */
+export async function saveMyPreferences(theme: ThemePreference): Promise<ThemePreference | null> {
+  const res = await fetch(
+    '/api/me/preferences',
+    authed({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(theme) }),
+  );
+  if (res.status === 401) return null;
+  if (!res.ok) throw new ApiError(res.status);
+  const body = (await res.json()) as { theme: ThemePreference | null };
+  return body.theme;
+}
+
 /** Dashboard summary figures (feature 016, Phase 2). */
 export interface Stats {
   repositories: number;
