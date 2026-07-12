@@ -5,6 +5,19 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Relikquary</title>
+    <script>
+      // Apply the saved theme's --rq-* tokens before first paint to avoid a flash of the default palette
+      // (feature 019). The map is pre-resolved and cached by the theme store; ignore any absent/corrupt value.
+      try {
+        var vars = JSON.parse(localStorage.getItem('relikquary.theme.vars') || 'null');
+        if (vars) {
+          var root = document.documentElement;
+          for (var key in vars) root.style.setProperty(key, vars[key]);
+        }
+      } catch (e) {
+        /* fall back to the default tokens in tokens.css */
+      }
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

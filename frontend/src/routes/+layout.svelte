@@ -1,7 +1,9 @@
 <script lang="ts">
   import '$lib/theme/tokens.css';
+  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { currentUser, login, logout } from '$lib/auth.svelte';
+  import { applyTheme, syncTheme } from '$lib/theme/theme.svelte';
   import AppShell from '$lib/components/shell/AppShell.svelte';
   import LoginForm from '$lib/components/LoginForm.svelte';
   import Sigil from '$lib/components/shell/Sigil.svelte';
@@ -9,6 +11,14 @@
   let { children } = $props();
   let user = $derived(currentUser());
   let showLogin = $state(false);
+
+  // Apply the stored theme as soon as we hydrate, then reconcile with the server whenever the signed-in
+  // user changes (login adopts their saved theme; logout keeps the last-applied local one).
+  onMount(applyTheme);
+  $effect(() => {
+    void user;
+    void syncTheme();
+  });
 
   const titles: Array<[(p: string) => boolean, string]> = [
     [(p) => p === '/dashboard', 'Dashboard'],

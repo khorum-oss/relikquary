@@ -11,3 +11,6 @@ databaseChangeLog:
   - include:
       file: 002-container-registry.xml
       relativeToChangelogFile: true
+  - include:
+      file: 003-user-preference.xml
+      relativeToChangelogFile: true

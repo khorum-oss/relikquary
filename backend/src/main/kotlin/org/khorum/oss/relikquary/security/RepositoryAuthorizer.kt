@@ -60,6 +60,15 @@ class RepositoryAuthorizer(private val security: SecurityProperties) {
         return hasRole(authentication, PUBLISH_ROLE)
     }
 
+    /**
+     * Self-service actions (e.g. a user's own theme, feature 019) require only that the request is
+     * authenticated — any role, or none. Anonymous requests are denied (⇒ 401).
+     */
+    fun permitsAuthenticated(authentication: Authentication?): Boolean {
+        if (!security.enabled) return true
+        return authentication != null && authentication.isAuthenticated && !isAnonymous(authentication)
+    }
+
     private fun hasRole(authentication: Authentication?, role: String): Boolean {
         if (authentication == null || !authentication.isAuthenticated || isAnonymous(authentication)) {
             return false
