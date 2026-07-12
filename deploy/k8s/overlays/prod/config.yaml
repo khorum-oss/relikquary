@@ -1,0 +1,8 @@
+# Prod-only config patch. Keeps prod's objects in their own top-level path in the shared Space so stage and
+# prod never comingle (HS-11): with RELIKQUARY_S3_PREFIX=prod, keys land under `prod/…`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relikquary-config
+data:
+  RELIKQUARY_S3_PREFIX: "prod"

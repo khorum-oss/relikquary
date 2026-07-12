@@ -13,6 +13,10 @@ resources:
   - secrets.onepassword.yaml
   - ingress.yaml
 
+# Per-env config: set RELIKQUARY_S3_PREFIX=stage so stage's objects live under `stage/…` in the shared Space.
+patches:
+  - path: config.yaml
+
 # Build + push env-specific tags (e.g. from CI on the main branch) and set them here. Edit newName to
 # your registry/repository. Stage uses defaults from the base for replicas/resources.
 images:

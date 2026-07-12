@@ -80,6 +80,8 @@ relikquary:
       access-key: ${RELIKQUARY_S3_ACCESS_KEY:}
       secret-key: ${RELIKQUARY_S3_SECRET_KEY:}
       path-style-access: true
+      # Optional key prefix so one bucket can host several envs (e.g. stage/… vs prod/…). Empty = root.
+      prefix: ${RELIKQUARY_S3_PREFIX:}
   publish:
     # Re-publish policy for an existing RELEASE coordinate: reject (default, immutable)
     # or overwrite. SNAPSHOT coordinates are always overwritable.

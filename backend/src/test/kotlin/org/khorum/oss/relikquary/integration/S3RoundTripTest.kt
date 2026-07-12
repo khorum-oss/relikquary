@@ -31,6 +31,15 @@ class S3RoundTripTest {
     private fun storage() =
         S3ArtifactStorage(s3, StorageProperties(backend = StorageProperties.Backend.S3, s3 = StorageProperties.S3(bucket = BUCKET)))
 
+    private fun storage(prefix: String) =
+        S3ArtifactStorage(
+            s3,
+            StorageProperties(
+                backend = StorageProperties.Backend.S3,
+                s3 = StorageProperties.S3(bucket = BUCKET, prefix = prefix),
+            ),
+        )
+
     @Test
     fun `stores and serves an object byte-for-byte`() {
         val store = storage()
@@ -85,6 +94,50 @@ class S3RoundTripTest {
         )
         assertEquals(3L, walked.getValue("walk/com/acme/w/1.0.0-SNAPSHOT/w-1.jar").sizeBytes)
         assertTrue(walked.values.all { it.lastModified != null })
+    }
+
+    @Test
+    fun `a configured prefix stores under it while the public API stays prefix-free`() {
+        val store = storage(prefix = "stage")
+        val key = "containers/_container/blobs/sha256/deadbeef"
+        val bytes = Random.nextBytes(256)
+
+        store.write(key, bytes.inputStream())
+
+        // logical round-trip works with the un-prefixed key
+        assertTrue(store.exists(key))
+        assertArrayEquals(bytes, store.openRead(key)!!.stream.use { it.readBytes() })
+
+        // the object physically lives under the prefix in the bucket
+        val head = s3.headObject { it.bucket(BUCKET).key("stage/$key") }
+        assertEquals(bytes.size.toLong(), head.contentLength())
+
+        // a different prefix (and the un-prefixed root store) do NOT see it — envs are isolated
+        assertFalse(storage(prefix = "prod").exists(key))
+        assertFalse(storage().exists(key))
+    }
+
+    @Test
+    fun `walk and list under a prefix return logical, prefix-stripped keys`() {
+        val store = storage(prefix = "stage")
+        store.write("releases/com/acme/lib/1.0.0/lib-1.0.0.jar", byteArrayOf(1, 2).inputStream())
+        store.write("releases/com/acme/lib/1.0.0/lib-1.0.0.pom", byteArrayOf(3).inputStream())
+
+        // walk returns keys with NO "stage/" prefix, so callers can feed them straight back into the store
+        val walked = store.walk("releases/com/acme/lib/").map { it.key }.toSet()
+        assertEquals(
+            setOf("releases/com/acme/lib/1.0.0/lib-1.0.0.jar", "releases/com/acme/lib/1.0.0/lib-1.0.0.pom"),
+            walked,
+        )
+        assertTrue(store.openRead(walked.first()) != null)
+
+        // list names stay relative to the queried (logical) folder
+        val names = store.list("releases/com/acme/lib/1.0.0").map { it.name }.toSet()
+        assertEquals(setOf("lib-1.0.0.jar", "lib-1.0.0.pom"), names)
+
+        // deletePrefix under the prefix removes exactly those objects
+        assertEquals(2, store.deletePrefix("releases/com/acme/lib"))
+        assertFalse(store.exists("releases/com/acme/lib/1.0.0/lib-1.0.0.jar"))
     }
 
     companion object {
