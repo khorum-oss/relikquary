@@ -149,9 +149,26 @@ authenticated one; the same image round-trips on filesystem and S3; existing Mav
 
 - [x] T034 [P] README.md — add a "Container repositories" section (config `format: CONTAINER`, `docker login`, hosted push/pull, Docker Hub proxy) 
 - [x] T035 [P] deploy/README.md — container usage + the plain-HTTP `insecure-registries`/TLS caveat
-- [ ] T036 Run `specs/018-container-registry/quickstart.md` scenarios A–D against a local `bootRun`; capture outcomes. **Pending a runnable environment** — cannot execute in this sandbox (Gradle 9.4.1 distribution egress-blocked; see the build-verification note above). Run in CI / a network-enabled env.
-- [ ] T037 Ensure `./gradlew build` is green: detekt zero violations, Kover thresholds met (annotate any unavoidable exclusion `@ExcludeFromCoverage` with justification — do not lower thresholds). **Pending CI** — the build cannot run in this sandbox; CI is the compile/test/coverage oracle.
-- [x] T038 [P] If any test-only dependency was added (e.g. pinning the `registry:2` image), extend `gradle/verification-metadata.xml`; otherwise confirm no verification change is needed
+- [ ] T036 Run `specs/018-container-registry/quickstart.md` scenarios A–D against a local `bootRun`; capture outcomes. **Pending a Docker daemon** — the scenarios require a real `docker`/`podman` client with a running daemon, which the execution environment does not provide (the `docker` CLI is present but no daemon socket). The equivalent HTTP-level round-trips are exercised automatically by the `:integration-tests` container suite (see the verification note below); the literal `docker pull`/`push` walkthrough should be run in CI or a Docker-enabled env.
+- [~] T037 Ensure `./gradlew build` is green: detekt zero violations, Kover thresholds met (annotate any unavoidable exclusion `@ExcludeFromCoverage` with justification — do not lower thresholds). **Verified in-env except the Docker-gated legs (2026-07-12)** — under the environment's system Gradle 8.14.3: `:backend` + `:integration-tests` `compileKotlin`/`compileTestKotlin` compile clean, `:backend:detekt` and `:integration-tests:detekt` report zero violations, and the `:integration-tests` container suite is green (13 tests, 0 failures; `ContainerStorageS3IT` auto-skips via `@Testcontainers(disabledWithoutDocker = true)`). Still deferred to CI: the Docker-backed `ContainerStorageS3IT` (MinIO) and the two pre-existing Docker ITs (`S3MinioIT`, `PersistencePostgresIT`), and the pinned Gradle 9.4.1 toolchain (its distribution redirects to `github.com`, which the environment's egress policy blocks — reported, not routed around). No local Kover numeric threshold is configured; coverage is enforced by the SonarCloud quality gate on CI, not a local `koverVerify` bound.
+- [x] T038 [P] If any test-only dependency was added (e.g. pinning the `registry:2` image), extend `gradle/verification-metadata.xml`; otherwise confirm no verification change is needed — confirmed: no test-only dependency added (the OCI stub is the JDK `HttpServer`, not a `registry:2` Testcontainer), and this checkout carries no `verification-metadata.xml`, so no change was needed.
+
+---
+
+## Verification note (2026-07-12): feature 018 tests exercised green in-env
+
+The US1–US3 container tests (T017–T019, T023–T024, T029–T030) live in the dedicated **`:integration-tests`**
+module (`integration-tests/src/test/kotlin/org/khorum/oss/relikquary/container/`), extracted there in commit
+`4509153` — they are NOT under `backend/src/test` (which keeps only the pure-unit `DigestTest` /
+`ImageReferenceTest`). An in-process `StubOciRegistry` (JDK `HttpServer`, enforcing the Bearer handshake)
+stands in for the upstream, and the ITs drive real V2 wire round-trips against the app booted on embedded
+SQLite + filesystem storage — no Docker daemon needed except for `ContainerStorageS3IT` (MinIO), which is
+`@Testcontainers(disabledWithoutDocker = true)` and auto-skips.
+
+Ran here under system Gradle 8.14.3: **`:integration-tests:test` → 13 tests, 0 failures, 1 skipped**
+(`ContainerStorageS3IT`, Docker absent), including a real `library/alpine:3.20` pull through the proxy
+against the actual Docker Hub (`ContainerProxyDockerHubIT` — reachable here; it auto-skips when offline).
+Both modules pass `detekt` with zero violations. No production or test code was changed to reach green.
 
 ---
 
