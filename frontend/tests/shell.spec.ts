@@ -18,10 +18,10 @@ test('sidebar navigates sections; publish screen renders', async ({ page }) => {
   await expect(page.getByTestId('publish-copy')).toBeVisible();
   await expect(page.getByTestId('upload-form')).toBeVisible();
 
-  // A later-phase section shows a themed placeholder, not a broken page.
+  // Settings renders its theme panel (feature 019), not a broken page.
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-  await expect(page.getByTestId('placeholder')).toBeVisible();
+  await expect(page.getByTestId('theme-settings')).toBeVisible();
 
   // The themed sign-in is reachable and dismissable; browsing stayed anonymous throughout.
   await page.getByTestId('login-button').click();
