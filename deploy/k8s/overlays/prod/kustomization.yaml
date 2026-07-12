@@ -13,9 +13,11 @@ resources:
   - secrets.onepassword.yaml
   - ingress.yaml
 
-# Production sizing (resources, replicas, PVC sizes) over the base defaults.
+# Production sizing (resources, replicas, PVC sizes) over the base defaults, plus per-env config
+# (RELIKQUARY_S3_PREFIX=prod so prod's objects live under `prod/…` in the shared Space).
 patches:
   - path: scale.yaml
+  - path: config.yaml
 
 # Pin prod to an immutable, promoted tag — never a moving tag like `latest`. Edit newName to your
 # registry/repository; bump newTag to roll out a release.

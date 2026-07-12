@@ -6,7 +6,6 @@ kind: ConfigMap
 metadata:
   name: relikquary-config
 data:
-  RELIKQUARY_STORAGE_ROOT: "/data"
   # Load the deploy-layer repository set (appconfig.yaml, mounted at /config) — adds the containers OCI repo
   # on top of the Maven defaults without rebuilding the image.
   SPRING_CONFIG_ADDITIONAL_LOCATION: "optional:file:/config/"
@@ -24,10 +23,12 @@ data:
   RELIKQUARY_GRADLE_PLUGIN_PORTAL_URL: "https://plugins.gradle.org/m2/"
   # Storage: S3-compatible object store (DigitalOcean Spaces). Access/secret keys come from
   # relikquary-secrets (RELIKQUARY_S3_ACCESS_KEY / RELIKQUARY_S3_SECRET_KEY, created out-of-band). Both envs
-  # share this Space; env separation is by the pushed image path (containers/prod vs containers/stage). See
-  # hestia-systems specs/2026-07-11-s3-registry-design.md.
+  # share this one Space; they are kept apart by a per-env S3 key PREFIX (RELIKQUARY_S3_PREFIX, set in each
+  # overlay → objects live under stage/… vs prod/…). The image path (containers/<env>/…) is a naming
+  # convention only and does NOT isolate storage. See hestia-systems ops/issues/ISSUES.md HS-11.
   RELIKQUARY_STORAGE_BACKEND: "s3"
   RELIKQUARY_S3_ENDPOINT: "https://nyc3.digitaloceanspaces.com"
   RELIKQUARY_S3_REGION: "nyc3"
   RELIKQUARY_S3_BUCKET: "reliquary.projects"
   RELIKQUARY_S3_PATH_STYLE_ACCESS: "true"
+  # RELIKQUARY_S3_PREFIX is intentionally NOT set here — it is per-environment (see overlays/{stage,prod}).

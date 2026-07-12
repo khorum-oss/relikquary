@@ -23,9 +23,14 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
 /**
- * S3-compatible [ArtifactStorage] (FR-001). The validated Maven-layout key is used directly as the S3
- * object key (FR-005); bytes are preserved exactly (FR-004); an absent key surfaces as null so the
- * protocol layer returns a clean 404 (FR-006).
+ * S3-compatible [ArtifactStorage] (FR-001). The validated Maven-layout key is used as the S3 object key
+ * (FR-005), optionally under a configured [StorageProperties.S3.prefix] so one bucket can host several
+ * envs; bytes are preserved exactly (FR-004); an absent key surfaces as null so the protocol layer returns
+ * a clean 404 (FR-006).
+ *
+ * The prefix is applied only at the S3 boundary via [physical]/[logical]: every key that crosses this
+ * class's public API is "logical" (prefix-free), so callers — and objects returned by [walk]/[list] — never
+ * see the prefix and can round-trip keys straight back into the store.
  */
 @Component
 @ConditionalOnProperty(name = ["relikquary.storage.backend"], havingValue = "s3")
@@ -36,11 +41,23 @@ class S3ArtifactStorage(
 
     private val bucket: String = properties.s3.bucket
 
+    // Normalised to no surrounding '/'. Empty means "store at the bucket root" (original behaviour).
+    private val keyPrefix: String = properties.s3.prefix.trim('/')
+
+    /** logical key → physical S3 key (under [keyPrefix]). */
+    private fun physical(key: String): String = if (keyPrefix.isEmpty()) key else "$keyPrefix/$key"
+
+    /** physical S3 key → logical key (with [keyPrefix] stripped). */
+    private fun logical(key: String): String = if (keyPrefix.isEmpty()) key else key.removePrefix("$keyPrefix/")
+
+    /** A normalised folder prefix (possibly empty, keeps its trailing '/') mapped into the physical keyspace. */
+    private fun physicalFolder(norm: String): String = if (keyPrefix.isEmpty()) norm else "$keyPrefix/$norm"
+
     // NoSuchKeyException is the expected "absent" signal from S3, not an error to propagate.
     @Suppress("SwallowedException")
     override fun exists(key: String): Boolean =
         try {
-            s3.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build())
+            s3.headObject(HeadObjectRequest.builder().bucket(bucket).key(physical(key)).build())
             true
         } catch (e: NoSuchKeyException) {
             false
@@ -49,7 +66,7 @@ class S3ArtifactStorage(
     @Suppress("SwallowedException")
     override fun openRead(key: String): StoredArtifact? =
         try {
-            val response = s3.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())
+            val response = s3.getObject(GetObjectRequest.builder().bucket(bucket).key(physical(key)).build())
             StoredArtifact(response, response.response().contentLength())
         } catch (e: NoSuchKeyException) {
             null
@@ -61,7 +78,7 @@ class S3ArtifactStorage(
         val tmp = Files.createTempFile("relikquary-s3-", ".tmp")
         try {
             val bytes = content.use { Files.copy(it, tmp, StandardCopyOption.REPLACE_EXISTING) }
-            s3.putObject(PutObjectRequest.builder().bucket(bucket).key(key).build(), RequestBody.fromFile(tmp))
+            s3.putObject(PutObjectRequest.builder().bucket(bucket).key(physical(key)).build(), RequestBody.fromFile(tmp))
             return bytes
         } finally {
             Files.deleteIfExists(tmp)
@@ -71,7 +88,7 @@ class S3ArtifactStorage(
     override fun openWrite(key: String): ArtifactWrite {
         // Buffer the streamed bytes to a temp file (putObject needs a length); upload only on commit.
         val tmp = Files.createTempFile("relikquary-s3-", ".tmp")
-        return S3ArtifactWrite(key, tmp, Files.newOutputStream(tmp).buffered())
+        return S3ArtifactWrite(physical(key), tmp, Files.newOutputStream(tmp).buffered())
     }
 
     /** Pending write that buffers to a temp file and uploads to S3 on commit; deletes the temp on abort. */
@@ -107,7 +124,7 @@ class S3ArtifactStorage(
     }
 
     override fun list(prefix: String): List<StorageEntry> {
-        val norm = normalizeFolder(prefix)
+        val norm = physicalFolder(normalizeFolder(prefix))
         val request = ListObjectsV2Request.builder().bucket(bucket).prefix(norm).delimiter("/").build()
         val pages = s3.listObjectsV2Paginator(request)
         val entries = mutableListOf<StorageEntry>()
@@ -125,21 +142,21 @@ class S3ArtifactStorage(
     }
 
     override fun walk(prefix: String): List<StoredObject> {
-        val norm = normalizeFolder(prefix)
+        val norm = physicalFolder(normalizeFolder(prefix))
         val request = ListObjectsV2Request.builder().bucket(bucket).prefix(norm).build()
         return s3.listObjectsV2Paginator(request).contents()
-            .map { StoredObject(it.key(), it.size(), it.lastModified()) }
+            .map { StoredObject(logical(it.key()), it.size(), it.lastModified()) }
             .toList()
     }
 
     override fun delete(key: String): Boolean {
         if (!exists(key)) return false
-        s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build())
+        s3.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(physical(key)).build())
         return true
     }
 
     override fun deletePrefix(prefix: String): Int {
-        val norm = normalizeFolder(prefix)
+        val norm = physicalFolder(normalizeFolder(prefix))
         val request = ListObjectsV2Request.builder().bucket(bucket).prefix(norm).build()
         val keys = s3.listObjectsV2Paginator(request).contents().map { it.key() }.toList()
         keys.chunked(DELETE_BATCH).forEach { batch ->

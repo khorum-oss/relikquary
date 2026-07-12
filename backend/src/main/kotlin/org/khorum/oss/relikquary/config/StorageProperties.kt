@@ -30,5 +30,13 @@ data class StorageProperties(
         val secretKey: String = "",
         /** Path-style addressing (required by MinIO and many S3-compatible endpoints). */
         val pathStyleAccess: Boolean = true,
+        /**
+         * Optional key prefix ("folder") under which every object is stored, so a single bucket can be
+         * shared by multiple deployments/environments without their keys colliding — e.g. `stage` stores
+         * objects under `stage/…` and `prod` under `prod/…`. Empty (default) stores at the bucket root.
+         * Surrounding slashes are ignored. Applied transparently: keys crossing the storage API are
+         * unprefixed ("logical"); the prefix exists only in the physical S3 keyspace.
+         */
+        val prefix: String = "",
     )
 }
