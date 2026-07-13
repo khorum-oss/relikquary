@@ -33,6 +33,11 @@ spec:
         app.kubernetes.io/name: relikquary
         app.kubernetes.io/component: backend
     spec:
+      # Credentials to pull the app image from the Relikquary registry. Created out-of-band (never committed)
+      # by `logos hestia relikquary pull_secret --env <env>`. Harmless while images are `:local`
+      # (imagePullPolicy IfNotPresent uses the cached image, so no pull/auth happens).
+      imagePullSecrets:
+        - name: relikquary-pull
       securityContext:
         runAsNonRoot: true
         # Numeric UID/GID of the image's `relikquary` user (useradd --system ⇒ 999). A numeric runAsUser

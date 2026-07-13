@@ -19,6 +19,10 @@ spec:
         app.kubernetes.io/name: relikquary
         app.kubernetes.io/component: frontend
     spec:
+      # Pull creds for the Relikquary registry — created out-of-band by `logos hestia relikquary pull_secret
+      # --env <env>` (never committed). Harmless while images are `:local` (IfNotPresent uses the cache).
+      imagePullSecrets:
+        - name: relikquary-pull
       securityContext:
         runAsNonRoot: true
       containers:
