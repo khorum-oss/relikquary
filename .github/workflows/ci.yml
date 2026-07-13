@@ -100,3 +100,71 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------------------------------
+  # CD (main only) — runs on the self-hosted runner on the Mini (LAN + cluster + colima docker access).
+  # Required GitHub secrets: RELIKQUARY_PUBLISHER_PW (registry push), HUB_DEPLOY_PAT (contents:write on the
+  # hestia-systems hub). See hestia-systems specs/2026-07-12-cicd-progressive-delivery-plan.md.
+  # ---------------------------------------------------------------------------------------------------
+  publish:
+    name: Publish image (stage registry)
+    needs: [backend, frontend, e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, arm64, hestia]
+    env:
+      # $GITHUB_SHA is a built-in; REGISTRY/PUBLISHER_PW as env keeps them out of the run interpolation.
+      REGISTRY: stage.192.168.50.206.nip.io:30443/containers/stage
+      PUBLISHER_PW: ${{ secrets.RELIKQUARY_PUBLISHER_PW }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to the stage registry
+        run: |
+          export PATH=/opt/homebrew/bin:$PATH
+          printf '%s' "$PUBLISHER_PW" \
+            | docker login stage.192.168.50.206.nip.io:30443 -u publisher --password-stdin
+      - name: Build + push backend (arm64, immutable :sha)
+        run: |
+          export PATH=/opt/homebrew/bin:$PATH
+          docker buildx build --platform linux/arm64 -f deploy/backend.Dockerfile \
+            -t "$REGISTRY/relikquary-backend:$GITHUB_SHA" --push .
+      - name: Build + push frontend (arm64, immutable :sha)
+        run: |
+          export PATH=/opt/homebrew/bin:$PATH
+          docker buildx build --platform linux/arm64 -f deploy/frontend.Dockerfile \
+            -t "$REGISTRY/relikquary-frontend:$GITHUB_SHA" --push .
+
+  deploy-stage:
+    name: Deploy to stage (render → hub)
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, arm64, hestia]
+    steps:
+      - name: Checkout app (overlay source for render.sh)
+        uses: actions/checkout@v4
+        with:
+          path: relikqary
+      - name: Checkout hub (CD source of truth)
+        uses: actions/checkout@v4
+        with:
+          repository: violabs-josh/hestia-systems
+          token: ${{ secrets.HUB_DEPLOY_PAT }}
+          path: hestia-systems
+      - name: Render stage manifest pinned to the new image
+        run: |
+          export PATH=/opt/homebrew/bin:$PATH
+          REG=stage.192.168.50.206.nip.io:30443/containers/stage
+          RELIKQARY="$GITHUB_WORKSPACE/relikqary" \
+          LAN_IP=192.168.50.206 LAN_DOMAIN=hestia \
+          BACKEND_IMAGE="$REG/relikquary-backend" FRONTEND_IMAGE="$REG/relikquary-frontend" \
+          hestia-systems/platform/deploy/scripts/render.sh stage "$GITHUB_SHA"
+      - name: Commit + push the rendered manifest to the hub
+        run: |
+          cd hestia-systems
+          git config user.name "relikquary-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add platform/deploy/manifests/relikquary/stage/manifests.yaml
+          git diff --cached --quiet && { echo "no manifest change"; exit 0; }
+          git commit -m "deploy(stage): relikquary $GITHUB_SHA"
+          git push
+      # The Gitea pull-mirror picks this up (poll interval) and ArgoCD (relikquary-stage = automated sync)
+      # rolls it out. UAT + prod promotion land in follow-up jobs (Phases 3–4).
