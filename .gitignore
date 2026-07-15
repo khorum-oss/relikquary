@@ -29,3 +29,8 @@ public.key
 .serena
 *.asc
 *.gpg
+
+# Local Maven-publish testing / secrets — never commit internal setup
+**/build/test-repo/
+publish-local.properties
+*.jks

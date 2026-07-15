@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.kover)
     alias(libs.plugins.dokka)
     alias(libs.plugins.dokka.javadoc)
+    `maven-publish`
 }
 
 group = "org.khorum.oss.relikquary"
@@ -129,5 +130,62 @@ if (project.hasProperty("bundleFrontend")) {
         from(rootProject.layout.projectDirectory.dir("frontend/build")) {
             into("static/ui")
         }
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("relikquary") {
+            // group/version inherited from the project; artifactId matches rootProject.name.
+            artifactId = "relikquary"
+            // The runnable Spring Boot app is the main artifact (Spring Boot disables the plain `jar`).
+            artifact(tasks.named("bootJar"))
+            artifact(sourcesJar)
+            artifact(dokkaJavadocJar)
+            pom {
+                name.set("Relikquary")
+                description.set("Relikquary artifact repository — backend (Kotlin/Spring) application JAR.")
+                url.set("https://github.com/khorum-oss/relikquary")
+                licenses {
+                    license {
+                        name.set("Apache License 2.0")
+                        url.set("https://www.apache.org/licenses/LICENSE-2.0")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/khorum-oss/relikquary")
+                    connection.set("scm:git:https://github.com/khorum-oss/relikquary.git")
+                }
+                developers {
+                    developer {
+                        id.set("khorum-oss")
+                        name.set("khorum-oss")
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        // Internal locations are NEVER committed. Each repo is registered only when its URL is injected at
+        // call time (by `logos maven publish`). A bare checkout registers nothing and leaks nothing.
+        val publisherUser = providers.environmentVariable("RELIKQUARY_PUBLISHER_USER")
+        val publisherPw = providers.environmentVariable("RELIKQUARY_PUBLISHER_PW")
+        listOf("Stage" to "RELIKQUARY_PUBLISH_STAGE_URL", "Prod" to "RELIKQUARY_PUBLISH_PROD_URL")
+            .forEach { (repoName, urlVar) ->
+                val urlProvider = providers.environmentVariable(urlVar)
+                if (urlProvider.isPresent) {
+                    maven {
+                        name = repoName
+                        url = uri(urlProvider.get())
+                        // `file://` targets (used by the Step 5 test) need no auth; real HTTPS targets do.
+                        if (url.scheme != "file" && publisherUser.isPresent) {
+                            credentials {
+                                username = publisherUser.get()
+                                password = publisherPw.orNull
+                            }
+                        }
+                    }
+                }
+            }
     }
 }
