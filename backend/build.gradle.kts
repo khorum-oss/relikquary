@@ -6,6 +6,8 @@ plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.detekt)
     alias(libs.plugins.kover)
+    alias(libs.plugins.dokka)
+    alias(libs.plugins.dokka.javadoc)
 }
 
 group = "org.khorum.oss.relikquary"
@@ -13,6 +15,15 @@ group = "org.khorum.oss.relikquary"
 // Single source of truth for the release version is the repo-root VERSION file (also used by the
 // container-image and CD flows), so the published Maven coordinates never drift from it.
 version = rootProject.file("VERSION").readText().trim()
+
+// KDoc → Javadoc-format HTML, packaged as the conventional `-javadoc.jar` so IDEs and
+// `dependency:resolve -Dclassifier=javadoc` discover it. Dokka's Gradle plugin doesn't ship a jar task, so
+// we wrap dokkaGeneratePublicationJavadoc's output ourselves (per Dokka docs).
+val dokkaJavadocJar by tasks.registering(Jar::class) {
+    description = "KDoc (Javadoc-format) documentation JAR"
+    from(tasks.dokkaGeneratePublicationJavadoc.flatMap { it.outputDirectory })
+    archiveClassifier.set("javadoc")
+}
 
 // adobe/s3mock runnable jar (exec classifier) — driven as an external process in S3RoundTripTest so it
 // runs in its own JVM (no Spring Boot classpath clash) and needs no Docker.
