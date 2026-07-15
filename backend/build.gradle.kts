@@ -10,6 +10,10 @@ plugins {
 
 group = "org.khorum.oss.relikquary"
 
+// Single source of truth for the release version is the repo-root VERSION file (also used by the
+// container-image and CD flows), so the published Maven coordinates never drift from it.
+version = rootProject.file("VERSION").readText().trim()
+
 // adobe/s3mock runnable jar (exec classifier) — driven as an external process in S3RoundTripTest so it
 // runs in its own JVM (no Spring Boot classpath clash) and needs no Docker.
 val s3mock: Configuration by configurations.creating {
