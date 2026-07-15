@@ -25,6 +25,15 @@ val dokkaJavadocJar by tasks.registering(Jar::class) {
     archiveClassifier.set("javadoc")
 }
 
+// Main sources, packaged as the conventional `-sources.jar` (the classifier IDEs auto-attach). Registered
+// manually rather than via `java { withSourcesJar() }` because the publication attaches the bootJar, not the
+// `java` component.
+val sourcesJar by tasks.registering(Jar::class) {
+    description = "Main Kotlin/Java sources JAR"
+    from(sourceSets.main.get().allSource)
+    archiveClassifier.set("sources")
+}
+
 // adobe/s3mock runnable jar (exec classifier) — driven as an external process in S3RoundTripTest so it
 // runs in its own JVM (no Spring Boot classpath clash) and needs no Docker.
 val s3mock: Configuration by configurations.creating {
