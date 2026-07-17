@@ -8,6 +8,7 @@
   });
 </script>
 
-<Story name="Hosted" args={{ repo: { name: 'releases', type: 'release', kind: 'HOSTED' } }} />
-<Story name="Proxy" args={{ repo: { name: 'maven-central', type: 'mixed', kind: 'PROXY' } }} />
-<Story name="Group" args={{ repo: { name: 'public', type: 'mixed', kind: 'GROUP' } }} />
+<Story name="Hosted" args={{ repo: { name: 'releases', type: 'release', kind: 'HOSTED', format: 'MAVEN' } }} />
+<Story name="Proxy" args={{ repo: { name: 'maven-central', type: 'mixed', kind: 'PROXY', format: 'MAVEN' } }} />
+<Story name="Group" args={{ repo: { name: 'public', type: 'mixed', kind: 'GROUP', format: 'MAVEN' } }} />
+<Story name="Container" args={{ repo: { name: 'containers', type: 'mixed', kind: 'HOSTED', format: 'CONTAINER' } }} />

@@ -45,7 +45,7 @@ class BrowseController(
 
     @GetMapping("/repositories")
     fun repositories(): List<RepositorySummary> =
-        registry.all().map { RepositorySummary(it.name, it.type.name, it.kind.name) }
+        registry.all().map { RepositorySummary(it.name, it.type.name, it.kind.name, it.format.name) }
 
     @GetMapping("/repositories/{repo}/contents", "/repositories/{repo}/contents/**")
     fun contents(@PathVariable repo: String, request: HttpServletRequest): ContentsResponse {

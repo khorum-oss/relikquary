@@ -10,6 +10,9 @@ interface ContainerTagRepository : JpaRepository<ContainerTag, String> {
     /** All tags recorded for an image name, for `GET …/tags/list`. */
     fun findByRepositoryAndImageName(repository: String, imageName: String): List<ContainerTag>
 
+    /** Every tag in a repository, for the browse UI's image/tag listing (feature 018). */
+    fun findByRepository(repository: String): List<ContainerTag>
+
     /** Tags pointing at a manifest digest — removed when that manifest is deleted by digest. */
     fun findByRepositoryAndImageNameAndManifestDigest(
         repository: String,

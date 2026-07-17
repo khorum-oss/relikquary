@@ -9,4 +9,7 @@ interface ContainerManifestRepository : JpaRepository<ContainerManifest, String>
     fun findByRepositoryAndDigest(repository: String, digest: String): ContainerManifest?
 
     fun existsByRepositoryAndDigest(repository: String, digest: String): Boolean
+
+    /** Every manifest descriptor in a repository, for the browse UI's image listing (feature 018). */
+    fun findByRepository(repository: String): List<ContainerManifest>
 }
