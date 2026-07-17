@@ -52,6 +52,13 @@ class ContainerBrowseController(
         return ContainerTagsResponse(repo, image, browse.tags(repo, image))
     }
 
+    @GetMapping("/manifest")
+    fun manifest(@PathVariable repo: String, @RequestParam digest: String): ManifestDetail {
+        requireContainerRepo(repo)
+        return browse.manifestDetail(repo, digest)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "no such manifest")
+    }
+
     private fun requireContainerRepo(name: String) = registry.require(name).also {
         if (it.format != RepositoryFormat.CONTAINER) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "not a container repository")

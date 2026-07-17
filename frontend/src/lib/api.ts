@@ -238,6 +238,46 @@ export function listContainerTags(repo: string, image: string): Promise<Containe
   return getJson(`/api/repositories/${repo}/containers/tags?image=${encodeURIComponent(image)}`);
 }
 
+/** The os/architecture/variant a platform sub-manifest targets (feature 020). */
+export interface ManifestPlatform {
+  os: string;
+  architecture: string;
+  variant?: string | null;
+}
+
+/** A reference a manifest declares — a config/layer blob, or a platform sub-manifest (feature 020). */
+export interface ManifestDescriptor {
+  digest: string;
+  mediaType: string;
+  size: number;
+  /** Whether the referenced object is stored locally; false ⇒ shown but marked not present. */
+  present: boolean;
+  platform?: ManifestPlatform | null;
+}
+
+/**
+ * The parsed detail of a stored manifest (feature 020), discriminated by `kind`:
+ * - `image`: single-platform image — `config`, ordered `layers`, `totalSize`.
+ * - `index`: manifest list / image index — platform sub-`manifests`.
+ * - `unknown`: bytes present but not a recognized shape — only the top-level fields are set.
+ */
+export interface ManifestDetail {
+  kind: 'image' | 'index' | 'unknown';
+  repository: string;
+  digest: string;
+  mediaType: string;
+  size: number;
+  config?: ManifestDescriptor | null;
+  layers?: ManifestDescriptor[] | null;
+  totalSize?: number | null;
+  manifests?: ManifestDescriptor[] | null;
+}
+
+/** Fetches the parsed detail of one stored manifest digest in a container repo. Throws [ApiError]. */
+export function getContainerManifest(repo: string, digest: string): Promise<ManifestDetail> {
+  return getJson(`/api/repositories/${repo}/containers/manifest?digest=${encodeURIComponent(digest)}`);
+}
+
 /** Lists managed users (admin; requires the PUBLISH role). */
 export function listUsers(): Promise<UserSummary[]> {
   return getJson('/api/admin/users');
