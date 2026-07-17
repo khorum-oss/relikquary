@@ -189,3 +189,11 @@ publishing {
             }
     }
 }
+
+// Keep the bootJar's filename stable at `backend.jar` — deploy/backend.Dockerfile and combined.Dockerfile
+// COPY that fixed name. Setting the project `version` (for Maven publish) otherwise renames it to
+// backend-<version>.jar and breaks the image build. The Maven publication still versions the artifact via
+// its coordinates (relikquary-<version>.jar), so publishing is unaffected.
+tasks.bootJar {
+    archiveVersion.set("")
+}
