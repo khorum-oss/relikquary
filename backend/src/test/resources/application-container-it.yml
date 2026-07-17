@@ -1,0 +1,26 @@
+# Standalone backend config for the container registry round-trip integration tests (feature 021). Loaded
+# via spring.config.location so it fully REPLACES the baked application.yml (no repositories list-merge
+# surprises, no leaked groups). Auth is off to focus on the wire round-trip (per-repo authz is covered by
+# feature 007). Storage root and the proxy upstream URL are supplied per-test via @DynamicPropertySource.
+relikquary:
+  security:
+    enabled: false
+  repositories:
+    - name: apps              # hosted container registry — the push/pull round-trip target
+      format: container
+    - name: vault             # a second hosted container repo — for the cross-repo isolation check
+      format: container
+    - name: mirror            # proxy container repo — pull-through over the in-JVM OCI upstream stub
+      format: container
+      kind: proxy
+      remoteUrl: ${TEST_OCI_UPSTREAM:https://registry-1.docker.io}
+  storage:
+    backend: filesystem
+    filesystem:
+      root: ${RELIKQUARY_STORAGE_ROOT:./relikquary-store}
+spring:
+  servlet:
+    multipart:
+      # Off so Tomcat does not consume a PUT/POST body as form parameters — blob/manifest bodies must
+      # reach the controller intact (same reason the e2e config disables it).
+      enabled: false
