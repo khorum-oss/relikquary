@@ -17,6 +17,8 @@ export interface RepositorySummary {
   type: string;
   /** How the repository resolves: HOSTED, PROXY, or GROUP (feature 006). */
   kind: string;
+  /** Wire format: MAVEN or CONTAINER (feature 018) — selects which browser the UI opens. */
+  format: string;
 }
 
 export interface ListingEntry {
@@ -194,6 +196,46 @@ export interface UserSummary {
 
 export function listRepositories(): Promise<RepositorySummary[]> {
   return getJson('/api/repositories');
+}
+
+/** One image in a container repository (feature 018). */
+export interface ContainerImageSummary {
+  name: string;
+  tagCount: number;
+  manifestCount: number;
+  lastPushed?: string | null;
+}
+
+export interface ContainerImagesResponse {
+  repository: string;
+  /** HOSTED or PROXY — the UI notes that a proxy resolves tags live from its upstream. */
+  kind: string;
+  images: ContainerImageSummary[];
+}
+
+/** One tag of a container image, resolved to the manifest it points at (feature 018). */
+export interface ContainerTagSummary {
+  tag: string;
+  digest: string;
+  mediaType: string;
+  size: number;
+  pushedAt?: string | null;
+}
+
+export interface ContainerTagsResponse {
+  repository: string;
+  image: string;
+  tags: ContainerTagSummary[];
+}
+
+/** Lists the images stored in a container repository. Throws [ApiError] on failure. */
+export function listContainerImages(repo: string): Promise<ContainerImagesResponse> {
+  return getJson(`/api/repositories/${repo}/containers`);
+}
+
+/** Lists the tags of one image in a container repository. Throws [ApiError] on failure. */
+export function listContainerTags(repo: string, image: string): Promise<ContainerTagsResponse> {
+  return getJson(`/api/repositories/${repo}/containers/tags?image=${encodeURIComponent(image)}`);
 }
 
 /** Lists managed users (admin; requires the PUBLISH role). */

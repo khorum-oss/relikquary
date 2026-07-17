@@ -7,6 +7,8 @@ data class RepositorySummary(
     val name: String,
     val type: String,
     val kind: String,
+    /** Wire format: MAVEN or CONTAINER (feature 018) — lets the UI pick the right browser. */
+    val format: String,
 )
 
 /** An entry in a directory listing: a folder, or a file with size + last-modified. */

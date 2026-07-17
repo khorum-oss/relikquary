@@ -55,6 +55,26 @@ seed_module() {
 }
 seed_module
 
+# A container image (feature 018): a docker-push-shaped upload — monolithic config + layer blobs, then a
+# manifest referencing them — so the container browse UI lists the image, its tag, digest, and size.
+seed_container() {
+  local image="$1" tag="$2"
+  local v2="http://127.0.0.1:8080/v2/apps/$image"
+  local octet=(-H 'Content-Type: application/octet-stream')
+  local config='{"architecture":"amd64","os":"linux"}'
+  local layer="fake-layer-$image-$tag"
+  local cfg_digest="sha256:$(printf '%s' "$config" | sha256sum | cut -d' ' -f1)"
+  local layer_digest="sha256:$(printf '%s' "$layer" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$config" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$cfg_digest"
+  printf '%s' "$layer" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$layer_digest"
+  local manifest
+  manifest="$(printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"%s","size":%s},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"%s","size":%s}]}' \
+    "$cfg_digest" "$(printf '%s' "$config" | wc -c)" "$layer_digest" "$(printf '%s' "$layer" | wc -c)")"
+  printf '%s' "$manifest" | "${CURL[@]}" "${ALICE[@]}" \
+    -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' -X PUT --data-binary @- "$v2/manifests/$tag"
+}
+seed_container team/service 1.0.0
+
 echo "Running Playwright..."
 cd "$ROOT/frontend"
 # Prefer a pre-installed Chromium when present (this environment); otherwise let Playwright use its

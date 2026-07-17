@@ -19,6 +19,8 @@ relikquary:
         read: [alice]
         publish: [alice]
         delete: [alice]
+    - name: apps              # hosted container registry (feature 018); open read, alice publishes
+      format: container
   storage:
     backend: filesystem
     filesystem:

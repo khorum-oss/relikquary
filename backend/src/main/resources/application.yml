@@ -65,6 +65,17 @@ relikquary:
       # keeps artifacts identical to what gradlePluginPortal() served — verification pins still match.
       # Use 'public' (Central-first) for ordinary dependencies; use 'plugins' for pluginManagement.
       members: [gradle-plugins, maven-central]
+    - name: apps
+      format: container
+      # A hosted OCI/Docker registry (feature 018): `docker push <host>/apps/<image>:<tag>` and
+      # `docker pull` speak the /v2 API; the web UI browses its images and tags read-only.
+    - name: dockerhub
+      format: container
+      kind: proxy
+      # A read-only pull-through cache of Docker Hub. `docker pull <host>/dockerhub/library/alpine:3.20`.
+      remoteUrl: ${RELIKQUARY_DOCKERHUB_URL:https://registry-1.docker.io}
+      # remoteUsername: ${RELIKQUARY_DOCKERHUB_USER:}
+      # remotePassword: ${RELIKQUARY_DOCKERHUB_PASSWORD:}
   storage:
     # Storage backend: 'filesystem' (default) or 's3' (S3-compatible: AWS, DigitalOcean Spaces, MinIO).
     backend: filesystem

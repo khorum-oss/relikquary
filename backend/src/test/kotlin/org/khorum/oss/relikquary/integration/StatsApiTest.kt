@@ -65,8 +65,9 @@ class StatsApiTest {
         assertEquals(201, put("/releases/com/example/stats/1.0.0/stats-1.0.0.pom", ByteArray(5)))
 
         val stats = json.readTree(get("/api/stats").body())
-        // All configured repositories (releases, snapshots, maven-central, gradle-plugins, public, plugins).
-        assertEquals(6, stats["repositories"].asInt())
+        // All configured repositories (releases, snapshots, maven-central, gradle-plugins, public, plugins,
+        // plus the container repos apps + dockerhub — feature 018).
+        assertEquals(8, stats["repositories"].asInt())
         assertTrue(stats["artifacts"].asLong() >= 2) { "object count should include the seeded files: $stats" }
         assertTrue(stats["storageBytes"].asLong() >= 10) { "bytes should include the seeded files: $stats" }
     }
