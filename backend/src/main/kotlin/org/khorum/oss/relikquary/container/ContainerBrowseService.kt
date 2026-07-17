@@ -33,7 +33,13 @@ data class ContainerTagSummary(
 class ContainerBrowseService(
     private val tags: ContainerTagRepository,
     private val manifests: ContainerManifestRepository,
+    private val reader: ContainerManifestReader,
 ) {
+
+    /** The parsed detail of a stored manifest digest (feature 020), or null if the digest is malformed or
+     * no manifest is stored for it. */
+    fun manifestDetail(repository: String, digest: String): ManifestDetail? =
+        if (Digest.isDigest(digest)) reader.read(repository, Digest.parse(digest)) else null
 
     /** Distinct image names in [repository], each with its tag/manifest counts and most-recent push. */
     fun images(repository: String): List<ContainerImageSummary> {

@@ -75,6 +75,45 @@ seed_container() {
 }
 seed_container team/service 1.0.0
 
+# A single platform's image manifest (config + one layer), pushed by its own digest so an index can
+# reference it. Echoes the manifest JSON so the caller can compute its digest and size (feature 020).
+push_platform_manifest() {
+  local image="$1" arch="$2"
+  local v2="http://127.0.0.1:8080/v2/apps/$image"
+  local octet=(-H 'Content-Type: application/octet-stream')
+  local config="{\"architecture\":\"$arch\",\"os\":\"linux\"}"
+  local layer="layer-$image-$arch"
+  local cfg_digest="sha256:$(printf '%s' "$config" | sha256sum | cut -d' ' -f1)"
+  local layer_digest="sha256:$(printf '%s' "$layer" | sha256sum | cut -d' ' -f1)"
+  "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary "$config" "$v2/blobs/uploads/?digest=$cfg_digest" >/dev/null
+  "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary "$layer" "$v2/blobs/uploads/?digest=$layer_digest" >/dev/null
+  local manifest
+  manifest="$(printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"%s","size":%s},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"%s","size":%s}]}' \
+    "$cfg_digest" "$(printf '%s' "$config" | wc -c)" "$layer_digest" "$(printf '%s' "$layer" | wc -c)")"
+  local m_digest="sha256:$(printf '%s' "$manifest" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$manifest" | "${CURL[@]}" "${ALICE[@]}" \
+    -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' -X PUT --data-binary @- "$v2/manifests/$m_digest" >/dev/null
+  printf '%s' "$manifest"
+}
+
+# A multi-arch image (feature 020): two platform manifests plus an image index referencing them, so the
+# manifest detail UI can list platforms and drill into one.
+seed_multiarch() {
+  local image="$1" tag="$2"
+  local v2="http://127.0.0.1:8080/v2/apps/$image"
+  local amd arm amd_digest arm_digest
+  amd="$(push_platform_manifest "$image" amd64)"
+  arm="$(push_platform_manifest "$image" arm64)"
+  amd_digest="sha256:$(printf '%s' "$amd" | sha256sum | cut -d' ' -f1)"
+  arm_digest="sha256:$(printf '%s' "$arm" | sha256sum | cut -d' ' -f1)"
+  local index
+  index="$(printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%s,"platform":{"os":"linux","architecture":"amd64"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s","size":%s,"platform":{"os":"linux","architecture":"arm64","variant":"v8"}}]}' \
+    "$amd_digest" "$(printf '%s' "$amd" | wc -c)" "$arm_digest" "$(printf '%s' "$arm" | wc -c)")"
+  printf '%s' "$index" | "${CURL[@]}" "${ALICE[@]}" \
+    -H 'Content-Type: application/vnd.oci.image.index.v1+json' -X PUT --data-binary @- "$v2/manifests/$tag"
+}
+seed_multiarch team/multi 1.0.0
+
 echo "Running Playwright..."
 cd "$ROOT/frontend"
 # Prefer a pre-installed Chromium when present (this environment); otherwise let Playwright use its

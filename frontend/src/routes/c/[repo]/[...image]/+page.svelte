@@ -3,6 +3,7 @@
   import { listContainerTags, ApiError, type ContainerTagsResponse } from '$lib/api';
   import { login } from '$lib/auth.svelte';
   import DockerPullSnippet from '$lib/components/DockerPullSnippet.svelte';
+  import ManifestDetail from '$lib/components/ManifestDetail.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import ErrorBanner from '$lib/components/ErrorBanner.svelte';
   import LoginForm from '$lib/components/LoginForm.svelte';
@@ -15,6 +16,8 @@
   let host = $derived(typeof window !== 'undefined' ? window.location.host : '');
 
   let data = $state<ContainerTagsResponse | null>(null);
+  // The tag whose manifest detail is expanded below the table (feature 020), or null when collapsed.
+  let openTag = $state<{ tag: string; digest: string } | null>(null);
   let error = $state('');
   let forbidden = $state('');
   let needLogin = $state(false);
@@ -32,9 +35,14 @@
     }
   }
 
+  function toggle(t: { tag: string; digest: string }) {
+    openTag = openTag?.tag === t.tag ? null : { tag: t.tag, digest: t.digest };
+  }
+
   async function load(r: string, img: string) {
     error = '';
     forbidden = '';
+    openTag = null;
     try {
       data = await listContainerTags(r, img);
     } catch (e) {
@@ -109,7 +117,7 @@
   <div class="head">
     <h1 data-testid="image-title">{image}</h1>
   </div>
-  <DockerPullSnippet reference={`${host}/${repo}/${image}:${data.tags[0]?.tag ?? 'latest'}`} />
+  <DockerPullSnippet reference={`${host}/${repo}/${image}:${openTag?.tag ?? data.tags[0]?.tag ?? 'latest'}`} />
 
   {#if data.tags.length === 0}
     <EmptyState testid="no-tags"
@@ -126,8 +134,10 @@
       </thead>
       <tbody>
         {#each data.tags as t (t.tag)}
-          <tr data-testid="tag-row">
-            <td class="tag" data-testid="tag-name">{t.tag}</td>
+          <tr data-testid="tag-row" class:open={openTag?.tag === t.tag}>
+            <td class="tag">
+              <button class="tag-btn" data-testid="tag-open" onclick={() => toggle(t)}>{t.tag}</button>
+            </td>
             <td class="digest" title={t.digest} data-testid="tag-digest">{shortDigest(t.digest)}</td>
             <td class="size">{fmtSize(t.size)}</td>
             <td class="pushed">{fmtDate(t.pushedAt)}</td>
@@ -135,6 +145,9 @@
         {/each}
       </tbody>
     </table>
+    {#if openTag}
+      <ManifestDetail {repo} digest={openTag.digest} />
+    {/if}
   {/if}
 {:else if loaded && !needLogin && !forbidden && !error}
   <EmptyState message="No such image." />
@@ -188,9 +201,23 @@
     padding: 0.55rem 0.6rem;
     border-bottom: 1px solid var(--rq-border-subtle);
   }
-  .tag {
+  .tag-btn {
     font-family: var(--rq-mono);
     color: var(--rq-gold);
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .tag-btn:hover {
+    text-decoration: underline;
+  }
+  tr.open .tag-btn {
+    font-weight: 600;
+  }
+  tr.open td {
+    background: var(--rq-row-hover);
   }
   .digest {
     font-family: var(--rq-mono);
