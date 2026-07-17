@@ -1,2 +1,3 @@
-// Displayed product version (feature 016). Kept in sync with the repository-root VERSION file.
-export const version = '1.0.0';
+// Displayed product version — injected from the repo-root VERSION file at build time (see vite.config.ts).
+// Do not hardcode; this stays in sync with VERSION automatically.
+export const version = __APP_VERSION__;

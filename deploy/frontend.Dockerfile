@@ -13,6 +13,8 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+# The displayed UI version is injected from the repo-root VERSION file at build time (vite.config.ts).
+COPY VERSION ./VERSION
 # Standalone UI served at the root (BASE_PATH unset). The combined image, by contrast, serves under /ui.
 RUN npm run build
 
