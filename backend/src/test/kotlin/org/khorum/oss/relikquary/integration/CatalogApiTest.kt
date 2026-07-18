@@ -35,6 +35,8 @@ class CatalogApiTest {
     private val json = ObjectMapper()
 
     companion object {
+        const val OCI_MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
+
         @TempDir
         @JvmStatic
         lateinit var storageRoot: Path
@@ -99,6 +101,55 @@ class CatalogApiTest {
         assertTrue(matches.isNotEmpty())
         assertTrue(matches.all { it["artifact"].asText() == "qwidget" }) { "q=qwidget returned $matches" }
         assertNull(matches.firstOrNull { it["artifact"].asText() == "qgadget" })
+    }
+
+    @Test
+    fun `container images appear as typed catalog entries`() {
+        // Push an image (config + layer) under two tags to the hosted 'apps' container repo.
+        val image = "team/catalogimg"
+        val config = """{"architecture":"amd64","os":"linux"}""".toByteArray()
+        val layer = "catalog-layer".toByteArray()
+        val configDigest = pushBlob(image, config)
+        val layerDigest = pushBlob(image, layer)
+        val manifest = (
+            """{"schemaVersion":2,"mediaType":"$OCI_MANIFEST_TYPE",""" +
+                """"config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"$configDigest","size":${config.size}},""" +
+                """"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"$layerDigest","size":${layer.size}}]}"""
+            ).toByteArray()
+        assertEquals(201, putManifest(image, "1.0.0", manifest))
+        assertEquals(201, putManifest(image, "2.0.0", manifest))
+
+        val entry = entries("?repo=apps").first { it["artifact"].asText() == image }
+        assertEquals("container", entry["type"].asText())
+        assertEquals("", entry["group"].asText())
+        assertEquals(2, entry["versionCount"].asInt(), "two tags")
+        assertTrue(entry["latestVersion"].asText().isNotEmpty(), "a latest tag is shown")
+        assertTrue(entry["sizeBytes"].asLong() > 0, "the manifest size is aggregated")
+
+        // A Maven entry keeps type=maven (default).
+        seed("com.example", "mixedmaven", "1.0.0", 3)
+        assertEquals("maven", entries("?repo=releases").first { it["artifact"].asText() == "mixedmaven" }["type"].asText())
+    }
+
+    private fun pushBlob(image: String, bytes: ByteArray): String {
+        val digest = digestOf(bytes)
+        val req = HttpRequest.newBuilder(url("/v2/apps/$image/blobs/uploads/?digest=$digest"))
+            .header("Content-Type", "application/octet-stream")
+            .POST(HttpRequest.BodyPublishers.ofByteArray(bytes)).build()
+        assertEquals(201, http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode())
+        return digest
+    }
+
+    private fun putManifest(image: String, ref: String, body: ByteArray): Int {
+        val req = HttpRequest.newBuilder(url("/v2/apps/$image/manifests/$ref"))
+            .header("Content-Type", OCI_MANIFEST_TYPE)
+            .PUT(HttpRequest.BodyPublishers.ofByteArray(body)).build()
+        return http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode()
+    }
+
+    private fun digestOf(bytes: ByteArray): String {
+        val hex = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        return "sha256:$hex"
     }
 
     @Test

@@ -23,6 +23,14 @@ data class ContainerTagSummary(
     val pushedAt: Instant?,
 )
 
+/** One container image summarised for the cross-repo catalog (feature 023). */
+data class ContainerCatalogImage(
+    val name: String,
+    val latestTag: String,
+    val tagCount: Int,
+    val sizeBytes: Long,
+)
+
 /**
  * Read-only projections over the container persistence tables for the browse/manage UI (feature 018).
  * A HOSTED repository has the full picture — every pushed manifest ([ContainerManifest]) and every tag
@@ -70,6 +78,36 @@ class ContainerBrowseService(
             ContainerImageSummary(name, imageTags.size, imageManifests.size, lastPushed)
         }
     }
+
+    /**
+     * The container images of [repository] projected for the cross-repo catalog (feature 023). A HOSTED repo
+     * yields one entry per tagged image — latest tag (by `updatedAt`), tag count, and the summed size of the
+     * distinct manifests its tags point at. A PROXY repo has no stored tags, so it yields one entry per
+     * distinct cached image with an empty latest tag, the cached-manifest count, and their summed size.
+     */
+    fun catalogImages(repository: String, kind: RepositoryKind): List<ContainerCatalogImage> {
+        val sizeByDigest = manifests.findByRepository(repository).associate { it.digest to it.sizeBytes }
+        return if (kind == RepositoryKind.HOSTED) {
+            tags.findByRepository(repository).groupBy { it.imageName }.map { (name, imageTags) ->
+                val latest = imageTags.maxByOrNull { it.updatedAt }
+                val size = imageTags.map { it.manifestDigest }.distinct().sumOf { sizeByDigest[it] ?: 0L }
+                ContainerCatalogImage(name, latest?.tag ?: "", imageTags.size, size)
+            }.sortedBy { it.name }
+        } else {
+            manifests.findByRepository(repository).groupBy { it.imageName }.map { (name, imageManifests) ->
+                ContainerCatalogImage(name, "", imageManifests.size, imageManifests.sumOf { it.sizeBytes })
+            }.sortedBy { it.name }
+        }
+    }
+
+    /** The number of distinct container images in [repository] (feature 023): tagged images for a hosted repo,
+     * cached-manifest image names for a proxy repo. */
+    fun distinctImageCount(repository: String, kind: RepositoryKind): Int =
+        if (kind == RepositoryKind.HOSTED) {
+            tags.findByRepository(repository).map { it.imageName }.distinct().size
+        } else {
+            manifests.findByRepository(repository).map { it.imageName }.distinct().size
+        }
 
     /** The tags of a single image, resolved to their manifests, newest first. Empty for a proxy repo. */
     fun tags(repository: String, imageName: String): List<ContainerTagSummary> =

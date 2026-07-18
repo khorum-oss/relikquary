@@ -1,6 +1,9 @@
 package org.khorum.oss.relikquary.catalog
 
+import org.khorum.oss.relikquary.config.RepositoryProperties
+import org.khorum.oss.relikquary.container.ContainerBrowseService
 import org.khorum.oss.relikquary.protocol.dto.CatalogEntry
+import org.khorum.oss.relikquary.repository.RepositoryFormat
 import org.khorum.oss.relikquary.repository.RepositoryRegistry
 import org.khorum.oss.relikquary.security.Action
 import org.khorum.oss.relikquary.security.RepositoryAuthorizer
@@ -21,6 +24,7 @@ class CatalogService(
     private val registry: RepositoryRegistry,
     private val storage: ArtifactStorage,
     private val authorizer: RepositoryAuthorizer,
+    private val containerBrowse: ContainerBrowseService,
 ) {
 
     /** All catalog entries across the readable repositories, optionally scoped to one [repoFilter]. */
@@ -28,7 +32,23 @@ class CatalogService(
         registry.all()
             .filter { repoFilter == null || it.name == repoFilter }
             .filter { authorizer.permits(it, Action.READ, authentication) }
-            .flatMap { entriesForRepo(it.name) }
+            .flatMap { repo ->
+                if (repo.format == RepositoryFormat.CONTAINER) containerEntries(repo) else entriesForRepo(repo.name)
+            }
+
+    /** Container-image catalog rows for a CONTAINER repository (feature 023). */
+    private fun containerEntries(repo: RepositoryProperties.Repo): List<CatalogEntry> =
+        containerBrowse.catalogImages(repo.name, repo.kind).map { image ->
+            CatalogEntry(
+                repository = repo.name,
+                group = "",
+                artifact = image.name,
+                latestVersion = image.latestTag,
+                versionCount = image.tagCount,
+                sizeBytes = image.sizeBytes,
+                type = "container",
+            )
+        }
 
     private fun entriesForRepo(repo: String): List<CatalogEntry> {
         val files = storage.walk(repo)

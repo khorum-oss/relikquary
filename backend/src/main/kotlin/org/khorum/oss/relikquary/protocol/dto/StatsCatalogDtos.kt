@@ -9,12 +9,16 @@ data class StatsResponse(
     val repositories: Int,
     val artifacts: Long,
     val storageBytes: Long,
+    /** Distinct container images across the repositories (feature 023); 0 when there are none. */
+    val images: Long = 0,
 )
 
 /**
- * One aggregated artifact in the cross-repo catalog (feature 016, Phase 2): a `group:artifact` with its
- * latest version, the number of versions, and the total stored size across all of them. Derived from the
- * stored artifacts; for proxy repositories it reflects cached content only.
+ * One aggregated entry in the cross-repo catalog (feature 016, Phase 2). A Maven entry is a `group:artifact`
+ * with its latest version, version count, and total stored size. A container entry (feature 023) reuses the
+ * same fields with container meaning — [artifact] = image name, [latestVersion] = latest tag,
+ * [versionCount] = tag count, [sizeBytes] = summed manifest size, [group] = "" — discriminated by [type].
+ * Derived from stored content; for proxy repositories it reflects cached content only.
  */
 data class CatalogEntry(
     val repository: String,
@@ -23,6 +27,8 @@ data class CatalogEntry(
     val latestVersion: String,
     val versionCount: Int,
     val sizeBytes: Long,
+    /** "maven" (default) or "container" — lets the UI badge and link each row by kind (feature 023). */
+    val type: String = "maven",
 )
 
 /** A page of catalog entries with the totals needed to drive client-side paging/disclosure. */

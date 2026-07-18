@@ -25,11 +25,19 @@
     }
   });
 
-  let q = $derived(searchQuery().trim().toLowerCase());
-  let rows = $derived(q ? all.filter((e) => `${e.group}:${e.artifact}`.toLowerCase().includes(q)) : all);
+  // A container entry's display name is its image; a Maven entry's is group:artifact (feature 023).
+  function displayName(e: CatalogEntry): string {
+    return e.type === 'container' ? e.artifact : `${e.group}:${e.artifact}`;
+  }
 
-  function artifactHref(e: CatalogEntry): string {
-    return `/r/${e.repository}/${e.group.replace(/\./g, '/')}/${e.artifact}`;
+  let q = $derived(searchQuery().trim().toLowerCase());
+  let rows = $derived(q ? all.filter((e) => displayName(e).toLowerCase().includes(q)) : all);
+
+  // A container row opens the image's tag view; a Maven row opens its raw folder view.
+  function href(e: CatalogEntry): string {
+    return e.type === 'container'
+      ? `/c/${e.repository}/${e.artifact}`
+      : `/r/${e.repository}/${e.group.replace(/\./g, '/')}/${e.artifact}`;
   }
 
   function fmtBytes(n: number): string {
@@ -55,17 +63,20 @@
   <table class="rq-panel" data-testid="catalog">
     <thead>
       <tr>
-        <th>Group : Artifact</th>
+        <th>Name</th>
         <th>Latest</th>
         <th class="right">Versions</th>
         <th class="right">Size</th>
       </tr>
     </thead>
     <tbody>
-      {#each rows as e (`${e.repository}:${e.group}:${e.artifact}`)}
+      {#each rows as e (`${e.repository}:${e.type}:${e.group}:${e.artifact}`)}
         <tr data-testid="catalog-row">
-          <td class="coord"><a href={artifactHref(e)}>{e.group}<span class="sep">:</span>{e.artifact}</a></td>
-          <td><span class="version">{e.latestVersion}</span></td>
+          <td class="coord">
+            <span class="type-badge {e.type}" data-testid="catalog-type">{e.type}</span>
+            <a href={href(e)} data-testid="catalog-link">{displayName(e)}</a>
+          </td>
+          <td>{#if e.latestVersion}<span class="version">{e.latestVersion}</span>{:else}<span class="dim">—</span>{/if}</td>
           <td class="right dim">{e.versionCount}</td>
           <td class="right dim">{fmtBytes(e.sizeBytes)}</td>
         </tr>
@@ -108,7 +119,22 @@
     font-family: var(--rq-mono);
     color: var(--rq-gold);
   }
-  .sep {
+  .type-badge {
+    display: inline-block;
+    font-family: var(--rq-serif);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    margin-right: 8px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    vertical-align: middle;
+  }
+  .type-badge.container {
+    color: var(--rq-gold);
+  }
+  .type-badge.maven {
     color: var(--rq-muted);
   }
   .version {
