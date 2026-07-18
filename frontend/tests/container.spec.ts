@@ -65,3 +65,29 @@ test('drill a multi-arch image into a platform manifest', async ({ page }) => {
   await detail.getByTestId('manifest-back').click();
   await expect(detail.getByTestId('platform-row')).toHaveCount(2);
 });
+
+// Delete a tag from a hosted image (feature 022): the affordance is shown on a hosted repo; deleting a tag
+// on an open repo prompts login, and after signing in as a publisher the tag disappears while a kept tag
+// remains. Seeded by scripts/e2e.sh as team/deletable with tags 1.0.0 + keep.
+test('delete a container tag from a hosted image', async ({ page }) => {
+  page.on('dialog', (d) => d.accept()); // accept the delete confirmation
+
+  await page.goto('/');
+  await page.getByTestId('repos-tab').click();
+  await page.getByTestId('repo-row').filter({ hasText: 'apps' }).getByTestId('repo-link').click();
+  await page.getByTestId('image-row').filter({ hasText: 'team/deletable' }).getByTestId('image-link').click();
+  await expect(page.getByTestId('image-title')).toHaveText('team/deletable');
+
+  // Both tags present; the hosted repo shows a delete affordance per row.
+  await expect(page.getByTestId('tag-row')).toHaveCount(2);
+  await page.getByTestId('tag-row').filter({ hasText: '1.0.0' }).getByTestId('tag-delete').click();
+
+  // Anonymous delete prompts login; sign in as a publisher (alice has PUBLISH ⇒ delete), then it retries.
+  await page.getByTestId('login-username').fill('alice');
+  await page.getByTestId('login-password').fill('pw');
+  await page.getByTestId('login-submit').click();
+
+  // The deleted tag disappears; the kept tag remains.
+  await expect(page.getByTestId('tag-row').filter({ hasText: '1.0.0' })).toHaveCount(0);
+  await expect(page.getByTestId('tag-row').filter({ hasText: 'keep' })).toHaveCount(1);
+});

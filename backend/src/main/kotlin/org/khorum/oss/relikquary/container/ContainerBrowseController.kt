@@ -1,10 +1,13 @@
 package org.khorum.oss.relikquary.container
 
+import org.khorum.oss.relikquary.config.RepositoryProperties
 import org.khorum.oss.relikquary.repository.RepositoryFormat
+import org.khorum.oss.relikquary.repository.RepositoryKind
 import org.khorum.oss.relikquary.repository.RepositoryNotFoundException
 import org.khorum.oss.relikquary.repository.RepositoryRegistry
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -20,10 +23,11 @@ data class ContainerImagesResponse(
     val images: List<ContainerImageSummary>,
 )
 
-/** The tags of one image in a container repository. */
+/** The tags of one image in a container repository, plus the repo kind so the UI gates the delete affordance. */
 data class ContainerTagsResponse(
     val repository: String,
     val image: String,
+    val kind: String,
     val tags: List<ContainerTagSummary>,
 )
 
@@ -43,13 +47,31 @@ class ContainerBrowseController(
     @GetMapping
     fun images(@PathVariable repo: String): ContainerImagesResponse {
         val repository = requireContainerRepo(repo)
-        return ContainerImagesResponse(repo, repository.kind.name, browse.images(repo))
+        return ContainerImagesResponse(repo, repository.kind.name, browse.images(repo, repository.kind))
     }
 
     @GetMapping("/tags")
     fun tags(@PathVariable repo: String, @RequestParam image: String): ContainerTagsResponse {
-        requireContainerRepo(repo)
-        return ContainerTagsResponse(repo, image, browse.tags(repo, image))
+        val repository = requireContainerRepo(repo)
+        return ContainerTagsResponse(repo, image, repository.kind.name, browse.tags(repo, image))
+    }
+
+    @DeleteMapping("/tags")
+    fun deleteTag(
+        @PathVariable repo: String,
+        @RequestParam image: String,
+        @RequestParam tag: String,
+    ): ResponseEntity<Void> {
+        val repository = requireContainerRepo(repo)
+        if (repository.kind != RepositoryKind.HOSTED) {
+            // A proxy container repo is a read-only pull-through cache — it has no tag to delete.
+            throw ResponseStatusException(HttpStatus.METHOD_NOT_ALLOWED, "cannot delete from a proxy repository")
+        }
+        return if (browse.deleteTag(repo, image, tag)) {
+            ResponseEntity.noContent().build()
+        } else {
+            ResponseEntity.notFound().build()
+        }
     }
 
     @GetMapping("/manifest")
@@ -59,7 +81,7 @@ class ContainerBrowseController(
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "no such manifest")
     }
 
-    private fun requireContainerRepo(name: String) = registry.require(name).also {
+    private fun requireContainerRepo(name: String): RepositoryProperties.Repo = registry.require(name).also {
         if (it.format != RepositoryFormat.CONTAINER) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "not a container repository")
         }

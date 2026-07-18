@@ -225,6 +225,8 @@ export interface ContainerTagSummary {
 export interface ContainerTagsResponse {
   repository: string;
   image: string;
+  /** HOSTED or PROXY — the UI shows the delete affordance for hosted repos only (feature 022). */
+  kind: string;
   tags: ContainerTagSummary[];
 }
 
@@ -236,6 +238,13 @@ export function listContainerImages(repo: string): Promise<ContainerImagesRespon
 /** Lists the tags of one image in a container repository. Throws [ApiError] on failure. */
 export function listContainerTags(repo: string, image: string): Promise<ContainerTagsResponse> {
   return getJson(`/api/repositories/${repo}/containers/tags?image=${encodeURIComponent(image)}`);
+}
+
+/** Deletes one tag of a hosted container image (feature 022). Throws [ApiError] on failure (401/403/404/…). */
+export async function deleteContainerTag(repo: string, image: string, tag: string): Promise<void> {
+  const url = `/api/repositories/${repo}/containers/tags?image=${encodeURIComponent(image)}&tag=${encodeURIComponent(tag)}`;
+  const res = await fetch(url, authed({ method: 'DELETE' }));
+  if (!res.ok) throw new ApiError(res.status);
 }
 
 /** The os/architecture/variant a platform sub-manifest targets (feature 020). */
