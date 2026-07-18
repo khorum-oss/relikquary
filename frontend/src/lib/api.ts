@@ -144,9 +144,15 @@ export interface Stats {
   repositories: number;
   artifacts: number;
   storageBytes: number;
+  /** Distinct container images across the repositories (feature 023). */
+  images: number;
 }
 
-/** One aggregated `group:artifact` row in the cross-repo catalog (feature 016, Phase 2). */
+/**
+ * One aggregated row in the cross-repo catalog (feature 016). `type` discriminates a Maven artifact from a
+ * container image (feature 023): for a container row, `artifact` is the image name, `latestVersion` the
+ * latest tag, `versionCount` the tag count, and `group` is empty.
+ */
 export interface CatalogEntry {
   repository: string;
   group: string;
@@ -154,6 +160,7 @@ export interface CatalogEntry {
   latestVersion: string;
   versionCount: number;
   sizeBytes: number;
+  type: 'maven' | 'container';
 }
 
 export interface CatalogResponse {

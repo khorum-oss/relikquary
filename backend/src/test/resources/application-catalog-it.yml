@@ -1,0 +1,33 @@
+# Standalone backend config for the container catalog authorization test (feature 023). Loaded via
+# spring.config.location so it fully REPLACES the baked application.yml. Auth is on: alice is a publisher
+# who owns the private container repo; the open container repo is open-read. Storage root is per-test.
+relikquary:
+  security:
+    enabled: true
+    users:
+      - username: alice
+        password: "{noop}pw"
+        roles: [PUBLISH]
+      - username: bob
+        password: "{noop}pw"
+        roles: []
+  repositories:
+    - name: openimg           # open-read hosted container repo; publish needs the global PUBLISH role (alice)
+      format: container
+    - name: privimg           # alice-only hosted container repo
+      format: container
+      access:
+        read: [alice]
+        publish: [alice]
+        delete: [alice]
+    - name: mvn               # a Maven repo, so the catalog interleaves both formats
+      kind: hosted
+      type: mixed
+  storage:
+    backend: filesystem
+    filesystem:
+      root: ${RELIKQUARY_STORAGE_ROOT:./relikquary-store}
+spring:
+  servlet:
+    multipart:
+      enabled: false

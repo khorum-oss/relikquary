@@ -31,6 +31,7 @@
     stats
       ? [
           { label: 'Total Artifacts', value: stats.artifacts.toLocaleString(), accent: 'var(--rq-gold)' },
+          { label: 'Container Images', value: `${stats.images}`, accent: 'var(--rq-gold-soft)' },
           { label: 'Repositories', value: `${stats.repositories}`, accent: 'var(--rq-muted)' },
           { label: 'Storage Used', value: fmtBytes(stats.storageBytes), accent: 'var(--rq-border-strong)' },
         ]
@@ -49,7 +50,7 @@
   {:else if failed}
     <div class="card rq-panel"><div class="rq-uppercase">Stats unavailable</div></div>
   {:else}
-    {#each [0, 1, 2] as i (i)}
+    {#each [0, 1, 2, 3] as i (i)}
       <div class="card rq-panel skeleton"><div class="bar"></div></div>
     {/each}
   {/if}
@@ -58,7 +59,7 @@
 <style>
   .cards {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 14px;
   }
   .card {
