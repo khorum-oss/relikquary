@@ -66,6 +66,28 @@ test('drill a multi-arch image into a platform manifest', async ({ page }) => {
   await expect(detail.getByTestId('platform-row')).toHaveCount(2);
 });
 
+// A cosign-signed image (feature 024): with a public key configured for 'apps' (scripts/e2e.sh signs
+// team/signed:1.0.0 with the matching key), the tag view and manifest detail badge it 'verified'. Advisory
+// only — the docker pull snippet is unchanged. Navigate via the UI (client-side routing).
+test('a signed image is badged verified on the tag view and manifest detail', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('repos-tab').click();
+  await page.getByTestId('repo-row').filter({ hasText: 'apps' }).getByTestId('repo-link').click();
+  await page.getByTestId('image-row').filter({ hasText: 'team/signed' }).getByTestId('image-link').click();
+  await expect(page.getByTestId('image-title')).toHaveText('team/signed');
+
+  // The tag row carries a verified trust badge.
+  const tagRow = page.getByTestId('tag-row').filter({ hasText: '1.0.0' });
+  const badge = tagRow.getByTestId('trust-badge');
+  await expect(badge).toHaveAttribute('data-trust', 'verified');
+  await expect(badge).toHaveText('verified');
+
+  // The manifest detail panel repeats the trust status.
+  await tagRow.getByTestId('tag-open').click();
+  const detail = page.getByTestId('manifest-detail');
+  await expect(detail.getByTestId('trust-badge')).toHaveAttribute('data-trust', 'verified');
+});
+
 // Delete a tag from a hosted image (feature 022): the affordance is shown on a hosted repo; deleting a tag
 // on an open repo prompts login, and after signing in as a publisher the tag disappears while a kept tag
 // remains. Seeded by scripts/e2e.sh as team/deletable with tags 1.0.0 + keep.

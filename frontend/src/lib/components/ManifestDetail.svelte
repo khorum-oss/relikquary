@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getContainerManifest, ApiError, type ManifestDetail, type ManifestDescriptor } from '$lib/api';
+  import TrustBadge from './TrustBadge.svelte';
 
   // Inline manifest detail panel (feature 020): given a repo and the digest a tag points at, show the
   // image's config + ordered layers, or — for a multi-arch image index — its platforms, each drillable
@@ -69,6 +70,10 @@
 <section class="detail" data-testid="manifest-detail">
   {#if stack.length > 1}
     <button class="back" onclick={back} data-testid="manifest-back">‹ platforms</button>
+  {/if}
+
+  {#if detail}
+    <div class="trust-row"><span class="k">trust</span><TrustBadge trust={detail.trust} /></div>
   {/if}
 
   {#if error}
@@ -149,12 +154,19 @@
     flex-wrap: wrap;
     margin-bottom: 0.6rem;
   }
-  .summary .k {
+  .summary .k,
+  .trust-row .k {
     font-family: var(--rq-serif);
     font-size: 10px;
     letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--rq-muted);
+  }
+  .trust-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
   }
   .mono {
     font-family: var(--rq-mono);

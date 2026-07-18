@@ -11,19 +11,27 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 JAR="$ROOT/backend/build/libs/backend.jar"
 CONFIG="$ROOT/frontend/scripts/e2e-config.yml"
 STORE="$(mktemp -d)"
+KEYDIR="$(mktemp -d)"
 CURL=(curl -sf --noproxy '*')
 ALICE=(-u alice:pw)
 
 [ -f "$JAR" ] || { echo "Build the backend jar first: ./gradlew :backend:bootJar"; exit 1; }
+
+# A cosign signing key for the 'apps' repo (feature 024): the backend is configured with the PUBLIC key so
+# it can verify signatures into a trust badge; the seeder signs an image with the matching PRIVATE key.
+echo "Generating cosign EC P-256 key pair..."
+openssl ecparam -name prime256v1 -genkey -noout -out "$KEYDIR/cosign.key" 2>/dev/null
+openssl ec -in "$KEYDIR/cosign.key" -pubout -out "$KEYDIR/cosign.pub" 2>/dev/null
 
 echo "Starting backend (auth on, store=$STORE)..."
 java -jar "$JAR" \
   --spring.config.location="file:$CONFIG" \
   --relikquary.storage.filesystem.root="$STORE" \
   --relikquary.persistence.sqlite.path="$STORE/relikquary.db" \
+  --COSIGN_KEY_FILE="$KEYDIR/cosign.pub" \
   >/tmp/relikquary-e2e-backend.log 2>&1 &
 BPID=$!
-trap 'kill "$BPID" 2>/dev/null || true' EXIT
+trap 'kill "$BPID" 2>/dev/null || true; rm -rf "$KEYDIR"' EXIT
 
 echo "Waiting for backend..."
 for _ in $(seq 1 60); do
@@ -118,6 +126,46 @@ seed_multiarch team/multi 1.0.0
 # disturb the images the other container tests rely on.
 seed_container team/deletable 1.0.0
 seed_container team/deletable keep
+
+# A signed image (feature 024): push an image, then a faithful cosign `.sig` — a simple-signing payload
+# blob for the image digest plus a detached SHA256withECDSA signature (openssl, matching the configured
+# public key) in the cosign annotation, tagged sha256-<hex>.sig. The UI must badge it 'verified'.
+seed_signed_container() {
+  local image="$1" tag="$2"
+  local v2="http://127.0.0.1:8080/v2/apps/$image"
+  local octet=(-H 'Content-Type: application/octet-stream')
+  local config='{"architecture":"amd64","os":"linux"}'
+  local layer="signed-layer-$image-$tag"
+  local cfg_digest="sha256:$(printf '%s' "$config" | sha256sum | cut -d' ' -f1)"
+  local layer_digest="sha256:$(printf '%s' "$layer" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$config" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$cfg_digest" >/dev/null
+  printf '%s' "$layer" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$layer_digest" >/dev/null
+  local manifest
+  manifest="$(printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"%s","size":%s},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","digest":"%s","size":%s}]}' \
+    "$cfg_digest" "$(printf '%s' "$config" | wc -c)" "$layer_digest" "$(printf '%s' "$layer" | wc -c)")"
+  local m_digest="sha256:$(printf '%s' "$manifest" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$manifest" | "${CURL[@]}" "${ALICE[@]}" \
+    -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' -X PUT --data-binary @- "$v2/manifests/$tag" >/dev/null
+
+  # The cosign simple-signing payload references the image manifest digest; sign its exact bytes.
+  local payload
+  payload="$(printf '{"critical":{"identity":{"docker-reference":"apps/%s"},"image":{"docker-manifest-digest":"%s"},"type":"cosign container image signature"},"optional":null}' \
+    "$image" "$m_digest")"
+  local payload_digest="sha256:$(printf '%s' "$payload" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$payload" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$payload_digest" >/dev/null
+  local sigconfig='{}'
+  local sigcfg_digest="sha256:$(printf '%s' "$sigconfig" | sha256sum | cut -d' ' -f1)"
+  printf '%s' "$sigconfig" | "${CURL[@]}" "${ALICE[@]}" "${octet[@]}" -X POST --data-binary @- "$v2/blobs/uploads/?digest=$sigcfg_digest" >/dev/null
+  local sig_b64
+  sig_b64="$(printf '%s' "$payload" | openssl dgst -sha256 -sign "$KEYDIR/cosign.key" -binary | base64 -w0)"
+  local sig_manifest
+  sig_manifest="$(printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"%s","size":%s},"layers":[{"mediaType":"application/vnd.dev.cosign.simplesigning.v1+json","digest":"%s","size":%s,"annotations":{"dev.cosignproject.cosign/signature":"%s"}}]}' \
+    "$sigcfg_digest" "$(printf '%s' "$sigconfig" | wc -c)" "$payload_digest" "$(printf '%s' "$payload" | wc -c)" "$sig_b64")"
+  local sig_tag="${m_digest/:/-}.sig"
+  printf '%s' "$sig_manifest" | "${CURL[@]}" "${ALICE[@]}" \
+    -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' -X PUT --data-binary @- "$v2/manifests/$sig_tag" >/dev/null
+}
+seed_signed_container team/signed 1.0.0
 
 echo "Running Playwright..."
 cd "$ROOT/frontend"

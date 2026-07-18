@@ -41,6 +41,13 @@ data class RepositoryProperties(
         val members: List<String> = emptyList(),
         /** Optional per-action access policy (feature 007); null ⇒ defaults preserve current behaviour. */
         val access: RepositoryAccess? = null,
+        /**
+         * CONTAINER (feature 024): a cosign public key used to advisorily verify this repo's image
+         * signatures — an inline PEM (`-----BEGIN PUBLIC KEY-----…`) or a path to a PEM file. When null, the
+         * global `relikquary.cosign.default-public-key` applies; when neither is set, trust is `unknown`.
+         * Supply via env/file; never commit a key.
+         */
+        val cosignPublicKey: String? = null,
         /** Optional retention/eviction policy (feature 009); null ⇒ this repository is never cleaned. */
         val retention: RetentionPolicy? = null,
     )

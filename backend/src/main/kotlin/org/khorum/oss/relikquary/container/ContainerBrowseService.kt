@@ -1,10 +1,18 @@
 package org.khorum.oss.relikquary.container
 
+import org.khorum.oss.relikquary.container.cosign.CosignVerifier
 import org.khorum.oss.relikquary.container.persistence.ContainerManifestRepository
 import org.khorum.oss.relikquary.container.persistence.ContainerTagRepository
 import org.khorum.oss.relikquary.repository.RepositoryKind
 import org.springframework.stereotype.Service
 import java.time.Instant
+
+/** Cosign's own artifacts (`sha256-<hex>.sig`/`.att`/`.sbom`) are stored as tags but are not user-facing image
+ * tags; they are hidden from tag listings and counts (feature 024). */
+internal fun isCosignArtifactTag(tag: String): Boolean =
+    tag.startsWith("sha256-") && COSIGN_ARTIFACT_SUFFIXES.any { tag.endsWith(it) }
+
+private val COSIGN_ARTIFACT_SUFFIXES = listOf(".sig", ".att", ".sbom")
 
 /** One image name in a container repository, summarised for the browse UI (feature 018). */
 data class ContainerImageSummary(
@@ -21,6 +29,8 @@ data class ContainerTagSummary(
     val mediaType: String,
     val size: Long,
     val pushedAt: Instant?,
+    /** Advisory cosign trust status of the manifest this tag points at (feature 024). */
+    val trust: String = "unknown",
 )
 
 /** One container image summarised for the cross-repo catalog (feature 023). */
@@ -44,12 +54,19 @@ class ContainerBrowseService(
     private val manifests: ContainerManifestRepository,
     private val reader: ContainerManifestReader,
     private val manifestService: ManifestService,
+    private val cosign: CosignVerifier,
 ) {
 
-    /** The parsed detail of a stored manifest digest (feature 020), or null if the digest is malformed or
-     * no manifest is stored for it. */
-    fun manifestDetail(repository: String, digest: String): ManifestDetail? =
-        if (Digest.isDigest(digest)) reader.read(repository, Digest.parse(digest)) else null
+    /**
+     * The parsed detail of a stored manifest digest (feature 020) with its advisory cosign trust status
+     * (feature 024), or null if the digest is malformed or no manifest is stored for it.
+     */
+    fun manifestDetail(repository: String, digest: String): ManifestDetail? {
+        if (!Digest.isDigest(digest)) return null
+        val detail = reader.read(repository, Digest.parse(digest)) ?: return null
+        val imageName = manifests.findByRepositoryAndDigest(repository, digest)?.imageName ?: return detail
+        return detail.copy(trust = cosign.verify(repository, imageName, digest).wire)
+    }
 
     /**
      * Deletes a tag pointer of a hosted image (feature 022), reusing the OCI delete-by-tag path — the
@@ -66,7 +83,7 @@ class ContainerBrowseService(
      * image names (it has no stored tags).
      */
     fun images(repository: String, kind: RepositoryKind): List<ContainerImageSummary> {
-        val tagRows = tags.findByRepository(repository)
+        val tagRows = tags.findByRepository(repository).filterNot { isCosignArtifactTag(it.tag) }
         val manifestRows = manifests.findByRepository(repository)
         val tagsByImage = tagRows.groupBy { it.imageName }
         val manifestsByImage = manifestRows.groupBy { it.imageName }
@@ -88,7 +105,8 @@ class ContainerBrowseService(
     fun catalogImages(repository: String, kind: RepositoryKind): List<ContainerCatalogImage> {
         val sizeByDigest = manifests.findByRepository(repository).associate { it.digest to it.sizeBytes }
         return if (kind == RepositoryKind.HOSTED) {
-            tags.findByRepository(repository).groupBy { it.imageName }.map { (name, imageTags) ->
+            tags.findByRepository(repository).filterNot { isCosignArtifactTag(it.tag) }
+                .groupBy { it.imageName }.map { (name, imageTags) ->
                 val latest = imageTags.maxByOrNull { it.updatedAt }
                 val size = imageTags.map { it.manifestDigest }.distinct().sumOf { sizeByDigest[it] ?: 0L }
                 ContainerCatalogImage(name, latest?.tag ?: "", imageTags.size, size)
@@ -104,14 +122,19 @@ class ContainerBrowseService(
      * cached-manifest image names for a proxy repo. */
     fun distinctImageCount(repository: String, kind: RepositoryKind): Int =
         if (kind == RepositoryKind.HOSTED) {
-            tags.findByRepository(repository).map { it.imageName }.distinct().size
+            tags.findByRepository(repository).filterNot { isCosignArtifactTag(it.tag) }
+                .map { it.imageName }.distinct().size
         } else {
             manifests.findByRepository(repository).map { it.imageName }.distinct().size
         }
 
-    /** The tags of a single image, resolved to their manifests, newest first. Empty for a proxy repo. */
+    /**
+     * The tags of a single image, resolved to their manifests, newest first, each with its cosign trust
+     * status (feature 024). Cosign's own `.sig`/`.att`/`.sbom` artifact tags are hidden. Empty for a proxy.
+     */
     fun tags(repository: String, imageName: String): List<ContainerTagSummary> =
         tags.findByRepositoryAndImageName(repository, imageName)
+            .filterNot { isCosignArtifactTag(it.tag) }
             .map { tag ->
                 val manifest = manifests.findByRepositoryAndDigest(repository, tag.manifestDigest)
                 ContainerTagSummary(
@@ -120,6 +143,7 @@ class ContainerBrowseService(
                     mediaType = manifest?.mediaType ?: "",
                     size = manifest?.sizeBytes ?: 0,
                     pushedAt = tag.updatedAt,
+                    trust = cosign.verify(repository, imageName, tag.manifestDigest).wire,
                 )
             }
             .sortedByDescending { it.pushedAt }
