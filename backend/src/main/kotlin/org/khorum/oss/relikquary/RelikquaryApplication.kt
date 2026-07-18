@@ -1,6 +1,7 @@
 package org.khorum.oss.relikquary
 
 import org.khorum.oss.relikquary.config.CleanupProperties
+import org.khorum.oss.relikquary.config.CosignProperties
 import org.khorum.oss.relikquary.config.PublishProperties
 import org.khorum.oss.relikquary.config.RepositoryProperties
 import org.khorum.oss.relikquary.config.SecurityProperties
@@ -20,6 +21,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
     RepositoryProperties::class,
     CleanupProperties::class,
     ObservabilityProperties::class,
+    CosignProperties::class,
 )
 class RelikquaryApplication
 

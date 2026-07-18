@@ -1,0 +1,17 @@
+# Standalone backend config for the "no key configured" branch of cosign verification (feature 024, US2):
+# a hosted container repo with neither a per-repo key nor a global default. Verification must report
+# `unknown` (not `unsigned`) so the UI never implies an image is untrusted merely because no key is set.
+relikquary:
+  security:
+    enabled: false
+  repositories:
+    - name: apps                # hosted container repo — no cosign key anywhere ⇒ trust `unknown`
+      format: container
+  storage:
+    backend: filesystem
+    filesystem:
+      root: ${RELIKQUARY_STORAGE_ROOT:./relikquary-store}
+spring:
+  servlet:
+    multipart:
+      enabled: false

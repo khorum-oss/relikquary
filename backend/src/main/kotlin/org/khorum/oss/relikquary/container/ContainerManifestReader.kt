@@ -44,6 +44,8 @@ data class ManifestDetail(
     val layers: List<ManifestDescriptor>? = null,
     val totalSize: Long? = null,
     val manifests: List<ManifestDescriptor>? = null,
+    /** Advisory cosign trust status of this manifest, attached by the browse service (feature 024). */
+    val trust: String = "unknown",
 )
 
 /**

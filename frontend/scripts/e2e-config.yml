@@ -21,6 +21,9 @@ relikquary:
         delete: [alice]
     - name: apps              # hosted container registry (feature 018); open read, alice publishes
       format: container
+      # feature 024: a cosign public key so image signatures are verified into a trust badge. The key is
+      # generated per e2e run and its path injected via --COSIGN_KEY_FILE (see scripts/e2e.sh).
+      cosign-public-key: ${COSIGN_KEY_FILE:}
   storage:
     backend: filesystem
     filesystem:

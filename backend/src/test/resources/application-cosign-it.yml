@@ -1,0 +1,29 @@
+# Standalone backend config for the cosign signature verification integration test (feature 024). Loaded via
+# spring.config.location so it fully REPLACES the baked application.yml. Auth is off to focus on verification.
+# The public keys are generated per test run in-JVM and injected through the `${TEST_COSIGN_*}` placeholders by
+# @DynamicPropertySource (a multi-line PEM binds fine as a property value); the storage root is injected the
+# same way. `appsbad` carries a deliberately malformed inline PEM to exercise the fail-closed path.
+relikquary:
+  security:
+    enabled: false
+  cosign:
+    default-public-key: ${TEST_COSIGN_DEFAULT:}
+  repositories:
+    - name: apps                # hosted container repo — verified against the global default key
+      format: container
+    - name: appskey             # hosted container repo — its own key overrides the global default
+      format: container
+      cosign-public-key: ${TEST_COSIGN_REPO:}
+    - name: appsbad             # hosted container repo — a malformed key must fail closed (never verified)
+      format: container
+      cosign-public-key: "-----BEGIN PUBLIC KEY-----\nnot-valid-base64!!!\n-----END PUBLIC KEY-----"
+  storage:
+    backend: filesystem
+    filesystem:
+      root: ${RELIKQUARY_STORAGE_ROOT:./relikquary-store}
+spring:
+  servlet:
+    multipart:
+      # Off so Tomcat does not consume a PUT/POST body as form parameters — blob/manifest bodies must reach
+      # the controller intact (same reason the other container configs disable it).
+      enabled: false

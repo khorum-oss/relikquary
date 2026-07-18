@@ -220,6 +220,9 @@ export interface ContainerImagesResponse {
   images: ContainerImageSummary[];
 }
 
+/** Advisory cosign trust status of a container image manifest (feature 024). */
+export type TrustStatus = 'verified' | 'signed-but-unverified' | 'unsigned' | 'unknown';
+
 /** One tag of a container image, resolved to the manifest it points at (feature 018). */
 export interface ContainerTagSummary {
   tag: string;
@@ -227,6 +230,8 @@ export interface ContainerTagSummary {
   mediaType: string;
   size: number;
   pushedAt?: string | null;
+  /** Advisory cosign trust status of the manifest this tag points at (feature 024). */
+  trust: TrustStatus;
 }
 
 export interface ContainerTagsResponse {
@@ -287,6 +292,8 @@ export interface ManifestDetail {
   layers?: ManifestDescriptor[] | null;
   totalSize?: number | null;
   manifests?: ManifestDescriptor[] | null;
+  /** Advisory cosign trust status of this manifest (feature 024). */
+  trust: TrustStatus;
 }
 
 /** Fetches the parsed detail of one stored manifest digest in a container repo. Throws [ApiError]. */

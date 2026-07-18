@@ -4,6 +4,7 @@
   import { login } from '$lib/auth.svelte';
   import DockerPullSnippet from '$lib/components/DockerPullSnippet.svelte';
   import ManifestDetail from '$lib/components/ManifestDetail.svelte';
+  import TrustBadge from '$lib/components/TrustBadge.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import ErrorBanner from '$lib/components/ErrorBanner.svelte';
   import LoginForm from '$lib/components/LoginForm.svelte';
@@ -171,6 +172,7 @@
           <tr data-testid="tag-row" class:open={openTag?.tag === t.tag}>
             <td class="tag">
               <button class="tag-btn" data-testid="tag-open" onclick={() => toggle(t)}>{t.tag}</button>
+              <TrustBadge trust={t.trust} />
             </td>
             <td class="digest" title={t.digest} data-testid="tag-digest">{shortDigest(t.digest)}</td>
             <td class="size">{fmtSize(t.size)}</td>
