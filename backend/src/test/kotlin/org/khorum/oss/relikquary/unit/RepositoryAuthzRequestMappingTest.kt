@@ -100,4 +100,12 @@ class RepositoryAuthzRequestMappingTest {
         assertTrue(granted("DELETE", "/api/repositories/private/com/x/1.0/x-1.0.jar", user("alice")))
         assertFalse(granted("DELETE", "/api/repositories/private/com/x/1.0/x-1.0.jar", user("bob")))
     }
+
+    @Test
+    fun `container tag delete maps to the repository delete grant`() {
+        // DELETE …/containers/tags rides the same DELETE→delete-action mapping as the Maven browse delete
+        // (feature 022), so it is gated by the repository's delete grant.
+        assertTrue(granted("DELETE", "/api/repositories/private/containers/tags", user("alice")))
+        assertFalse(granted("DELETE", "/api/repositories/private/containers/tags", user("bob")))
+    }
 }

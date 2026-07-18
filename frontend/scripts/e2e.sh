@@ -114,6 +114,11 @@ seed_multiarch() {
 }
 seed_multiarch team/multi 1.0.0
 
+# A dedicated image with two tags for the tag-delete test (feature 022), so deleting one tag does not
+# disturb the images the other container tests rely on.
+seed_container team/deletable 1.0.0
+seed_container team/deletable keep
+
 echo "Running Playwright..."
 cd "$ROOT/frontend"
 # Prefer a pre-installed Chromium when present (this environment); otherwise let Playwright use its

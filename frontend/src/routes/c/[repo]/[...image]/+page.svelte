@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { listContainerTags, ApiError, type ContainerTagsResponse } from '$lib/api';
+  import { listContainerTags, deleteContainerTag, ApiError, type ContainerTagsResponse } from '$lib/api';
   import { login } from '$lib/auth.svelte';
   import DockerPullSnippet from '$lib/components/DockerPullSnippet.svelte';
   import ManifestDetail from '$lib/components/ManifestDetail.svelte';
@@ -20,14 +20,22 @@
   let openTag = $state<{ tag: string; digest: string } | null>(null);
   let error = $state('');
   let forbidden = $state('');
+  // A transient message for a failed delete (e.g. not permitted), distinct from repo-access `forbidden`.
+  let actionError = $state('');
   let needLogin = $state(false);
   let loginError = $state('');
   let loaded = $state(false);
+  // On a 401 we prompt login and, after sign-in, replay whatever the user was doing (load or delete).
+  let pendingRetry: (() => Promise<void>) | null = null;
 
-  function handle(e: unknown) {
+  let canDelete = $derived(data?.kind === 'HOSTED');
+
+  function handleLoad(e: unknown) {
     if (e instanceof ApiError) {
-      if (e.status === 401) needLogin = true;
-      else if (e.status === 403) forbidden = 'You are not permitted to access this repository.';
+      if (e.status === 401) {
+        pendingRetry = () => load(repo, image);
+        needLogin = true;
+      } else if (e.status === 403) forbidden = 'You are not permitted to access this repository.';
       else if (e.status === 404) error = 'No such repository.';
       else error = `Failed (${e.status}).`;
     } else {
@@ -42,12 +50,13 @@
   async function load(r: string, img: string) {
     error = '';
     forbidden = '';
+    actionError = '';
     openTag = null;
     try {
       data = await listContainerTags(r, img);
     } catch (e) {
       data = null;
-      handle(e);
+      handleLoad(e);
     } finally {
       loaded = true;
     }
@@ -57,16 +66,37 @@
     load(repo, image);
   });
 
+  async function del(tag: string) {
+    if (!confirm(`Delete tag "${tag}"? Only the tag is removed; the image digest and layers are kept.`)) return;
+    await doDelete(tag);
+  }
+
+  async function doDelete(tag: string) {
+    actionError = '';
+    try {
+      await deleteContainerTag(repo, image, tag);
+      await load(repo, image);
+    } catch (e) {
+      if (e instanceof ApiError) {
+        if (e.status === 401) {
+          pendingRetry = () => doDelete(tag);
+          needLogin = true;
+        } else if (e.status === 403) actionError = 'You are not permitted to delete tags in this repository.';
+        else if (e.status === 404) await load(repo, image); // already gone — just refresh
+        else actionError = `Delete failed (${e.status}).`;
+      } else {
+        actionError = `Delete failed (${e}).`;
+      }
+    }
+  }
+
   async function onLogin(username: string, password: string) {
     login(username, password);
     needLogin = false;
     loginError = '';
-    try {
-      await load(repo, image);
-    } catch {
-      needLogin = true;
-      loginError = 'Invalid credentials.';
-    }
+    const retry = pendingRetry ?? (() => load(repo, image));
+    pendingRetry = null;
+    await retry();
   }
 
   function fmtDate(iso?: string | null): string {
@@ -112,6 +142,9 @@
 {#if error}
   <ErrorBanner message={error} />
 {/if}
+{#if actionError}
+  <ErrorBanner message={actionError} />
+{/if}
 
 {#if data}
   <div class="head">
@@ -130,6 +163,7 @@
           <th>Digest</th>
           <th>Size</th>
           <th>Pushed</th>
+          {#if canDelete}<th class="actions" aria-label="Actions"></th>{/if}
         </tr>
       </thead>
       <tbody>
@@ -141,6 +175,12 @@
             <td class="digest" title={t.digest} data-testid="tag-digest">{shortDigest(t.digest)}</td>
             <td class="size">{fmtSize(t.size)}</td>
             <td class="pushed">{fmtDate(t.pushedAt)}</td>
+            {#if canDelete}
+              <td class="actions">
+                <button class="delete-btn" data-testid="tag-delete" title={`Delete tag ${t.tag}`}
+                  onclick={() => del(t.tag)}>Delete</button>
+              </td>
+            {/if}
           </tr>
         {/each}
       </tbody>
@@ -227,6 +267,26 @@
   .pushed {
     color: var(--rq-dim);
     white-space: nowrap;
+  }
+  .actions {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .delete-btn {
+    font-family: var(--rq-serif);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--rq-border-strong);
+    border-radius: var(--rq-radius);
+    background: var(--rq-panel);
+    color: var(--rq-muted);
+    cursor: pointer;
+  }
+  .delete-btn:hover {
+    color: var(--rq-danger);
+    border-color: var(--rq-danger);
   }
   .login-inline {
     max-width: 24rem;

@@ -2,6 +2,7 @@ package org.khorum.oss.relikquary.container
 
 import org.khorum.oss.relikquary.container.persistence.ContainerManifestRepository
 import org.khorum.oss.relikquary.container.persistence.ContainerTagRepository
+import org.khorum.oss.relikquary.repository.RepositoryKind
 import org.springframework.stereotype.Service
 import java.time.Instant
 
@@ -34,6 +35,7 @@ class ContainerBrowseService(
     private val tags: ContainerTagRepository,
     private val manifests: ContainerManifestRepository,
     private val reader: ContainerManifestReader,
+    private val manifestService: ManifestService,
 ) {
 
     /** The parsed detail of a stored manifest digest (feature 020), or null if the digest is malformed or
@@ -41,13 +43,27 @@ class ContainerBrowseService(
     fun manifestDetail(repository: String, digest: String): ManifestDetail? =
         if (Digest.isDigest(digest)) reader.read(repository, Digest.parse(digest)) else null
 
-    /** Distinct image names in [repository], each with its tag/manifest counts and most-recent push. */
-    fun images(repository: String): List<ContainerImageSummary> {
+    /**
+     * Deletes a tag pointer of a hosted image (feature 022), reusing the OCI delete-by-tag path — the
+     * mutable `(repository, imageName, tag)` pointer is removed while the digest-addressed manifest and its
+     * blobs are retained (no GC). Returns false when no such tag exists.
+     */
+    fun deleteTag(repository: String, imageName: String, tag: String): Boolean =
+        manifestService.delete(repository, imageName, tag)
+
+    /**
+     * The image names in [repository], each with its tag/manifest counts and most-recent push. The listing
+     * is kind-aware (feature 022): a HOSTED repo lists images that have at least one tag (so a fully-untagged
+     * image drops out once its last tag is deleted, with no GC); a PROXY repo lists distinct cached-manifest
+     * image names (it has no stored tags).
+     */
+    fun images(repository: String, kind: RepositoryKind): List<ContainerImageSummary> {
         val tagRows = tags.findByRepository(repository)
         val manifestRows = manifests.findByRepository(repository)
         val tagsByImage = tagRows.groupBy { it.imageName }
         val manifestsByImage = manifestRows.groupBy { it.imageName }
-        return (tagsByImage.keys + manifestsByImage.keys).sorted().map { name ->
+        val names = if (kind == RepositoryKind.HOSTED) tagsByImage.keys else manifestsByImage.keys
+        return names.sorted().map { name ->
             val imageTags = tagsByImage[name].orEmpty()
             val imageManifests = manifestsByImage[name].orEmpty()
             val lastPushed = (imageTags.map { it.updatedAt } + imageManifests.map { it.createdAt }).maxOrNull()
