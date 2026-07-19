@@ -76,10 +76,14 @@
   .attrs dt {
     color: var(--rq-muted);
     font-family: var(--rq-mono);
+    /* Feature 025: long attribute names/values wrap rather than widen the panel past a phone screen. */
+    overflow-wrap: anywhere;
   }
   .attrs dd {
     color: var(--rq-text);
     font-family: var(--rq-mono);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .variant :global(strong) {
     color: var(--rq-muted);

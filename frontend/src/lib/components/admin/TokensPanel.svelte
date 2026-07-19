@@ -126,29 +126,31 @@
   {#if loaded && tokens.length === 0 && !error}
     <EmptyState message="No API tokens yet. Create one to authenticate CI without sharing a password." />
   {:else if tokens.length > 0}
-    <table class="rq-panel" data-testid="tokens-table">
-      <thead>
-        <tr><th>Name</th><th>Owner</th><th>Scope</th><th>Created</th><th>Last used</th><th></th></tr>
-      </thead>
-      <tbody>
-        {#each tokens as token (token.id)}
-          <tr data-testid="token-row" class:revoked={token.revoked}>
-            <td class="mono">{token.name}</td>
-            <td class="dim">{token.owner}</td>
-            <td><span class="scope">{token.scope}</span></td>
-            <td class="dim">{fmt(token.createdAt)}</td>
-            <td class="dim">{fmt(token.lastUsedAt)}</td>
-            <td class="right">
-              {#if token.revoked}
-                <span class="dim">revoked</span>
-              {:else}
-                <button class="link" data-testid="token-revoke" onclick={() => revoke(token)}>Revoke</button>
-              {/if}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="rq-scroll-x" data-testid="tokens-scroll">
+      <table class="rq-panel" data-testid="tokens-table">
+        <thead>
+          <tr><th>Name</th><th>Owner</th><th>Scope</th><th>Created</th><th>Last used</th><th></th></tr>
+        </thead>
+        <tbody>
+          {#each tokens as token (token.id)}
+            <tr data-testid="token-row" class:revoked={token.revoked}>
+              <td class="mono">{token.name}</td>
+              <td class="dim">{token.owner}</td>
+              <td><span class="scope">{token.scope}</span></td>
+              <td class="dim">{fmt(token.createdAt)}</td>
+              <td class="dim">{fmt(token.lastUsedAt)}</td>
+              <td class="right">
+                {#if token.revoked}
+                  <span class="dim">revoked</span>
+                {:else}
+                  <button class="link" data-testid="token-revoke" onclick={() => revoke(token)}>Revoke</button>
+                {/if}
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 </div>
 
@@ -191,7 +193,7 @@
     padding: 16px 18px;
     display: grid;
     gap: 12px;
-    max-width: 26rem;
+    max-width: min(26rem, 100%);
   }
   label {
     display: grid;
@@ -201,6 +203,12 @@
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: var(--rq-dim);
+  }
+  /* Feature 025: the tokens table scrolls inside .rq-scroll-x on a phone, not the page. */
+  @media (max-width: 768px) {
+    table {
+      min-width: 580px;
+    }
   }
   table {
     width: 100%;

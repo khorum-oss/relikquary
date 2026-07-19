@@ -126,24 +126,26 @@
   {#if loaded && users.length === 0 && !error}
     <EmptyState message="No managed users yet. Configured users still sign in as before." />
   {:else if users.length > 0}
-    <table class="rq-panel" data-testid="users-table">
-      <thead>
-        <tr><th>Username</th><th>Email</th><th>Role</th><th>Last active</th><th></th></tr>
-      </thead>
-      <tbody>
-        {#each users as user (user.id)}
-          <tr data-testid="user-row">
-            <td class="who"><span class="avatar">{user.username.charAt(0).toUpperCase()}</span>{user.username}</td>
-            <td class="dim">{user.email ?? '—'}</td>
-            <td><span class="role">{roleLabel(user.roles)}</span></td>
-            <td class="dim">{fmt(user.lastActiveAt)}</td>
-            <td class="right">
-              <button class="link" data-testid="user-delete" onclick={() => remove(user)}>Delete</button>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="rq-scroll-x" data-testid="users-scroll">
+      <table class="rq-panel" data-testid="users-table">
+        <thead>
+          <tr><th>Username</th><th>Email</th><th>Role</th><th>Last active</th><th></th></tr>
+        </thead>
+        <tbody>
+          {#each users as user (user.id)}
+            <tr data-testid="user-row">
+              <td class="who"><span class="avatar">{user.username.charAt(0).toUpperCase()}</span>{user.username}</td>
+              <td class="dim">{user.email ?? '—'}</td>
+              <td><span class="role">{roleLabel(user.roles)}</span></td>
+              <td class="dim">{fmt(user.lastActiveAt)}</td>
+              <td class="right">
+                <button class="link" data-testid="user-delete" onclick={() => remove(user)}>Delete</button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   {/if}
 </div>
 
@@ -161,7 +163,7 @@
     padding: 16px 18px;
     display: grid;
     gap: 12px;
-    max-width: 26rem;
+    max-width: min(26rem, 100%);
   }
   label {
     display: grid;
@@ -181,6 +183,12 @@
     width: 100%;
     border-collapse: collapse;
     overflow: hidden;
+  }
+  /* Feature 025: the users table scrolls inside .rq-scroll-x on a phone, not the page. */
+  @media (max-width: 768px) {
+    table {
+      min-width: 520px;
+    }
   }
   th {
     text-align: left;

@@ -31,6 +31,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
   .row:hover {
     background: var(--rq-row-hover);
@@ -39,11 +40,20 @@
     font-family: var(--rq-mono);
     font-size: 13px;
     color: var(--rq-gold);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .meta {
     display: flex;
     align-items: center;
     gap: 0.7rem;
+    flex-shrink: 0;
+  }
+  /* Feature 025: a comfortable tap height for the row link on touch screens. */
+  @media (max-width: 768px) {
+    .row {
+      padding: 14px 16px;
+    }
   }
   .type {
     color: var(--rq-dim);

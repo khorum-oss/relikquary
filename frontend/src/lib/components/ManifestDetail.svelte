@@ -88,20 +88,22 @@
       <span data-testid="manifest-total">{fmtSize(detail.totalSize ?? 0)}</span>
     </div>
     {#if detail.layers && detail.layers.length > 0}
-      <table class="layers" data-testid="layer-table">
-        <thead>
-          <tr><th>Layer</th><th>Media type</th><th>Size</th></tr>
-        </thead>
-        <tbody>
-          {#each detail.layers as layer, i (layer.digest + i)}
-            <tr data-testid="layer-row">
-              <td class="mono" title={layer.digest}>{shortDigest(layer.digest)}{#if !layer.present}<span class="absent" title="not stored locally"> ·not stored</span>{/if}</td>
-              <td class="mt">{layer.mediaType}</td>
-              <td class="size">{fmtSize(layer.size)}</td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      <div class="rq-scroll-x" data-testid="layer-table-scroll">
+        <table class="layers" data-testid="layer-table">
+          <thead>
+            <tr><th>Layer</th><th>Media type</th><th>Size</th></tr>
+          </thead>
+          <tbody>
+            {#each detail.layers as layer, i (layer.digest + i)}
+              <tr data-testid="layer-row">
+                <td class="mono" title={layer.digest}>{shortDigest(layer.digest)}{#if !layer.present}<span class="absent" title="not stored locally"> ·not stored</span>{/if}</td>
+                <td class="mt">{layer.mediaType}</td>
+                <td class="size">{fmtSize(layer.size)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
     {:else}
       <p class="loading">This manifest has a config but no layers.</p>
     {/if}
@@ -180,6 +182,12 @@
   .layers {
     border-collapse: collapse;
     font-size: 12px;
+  }
+  /* Feature 025: the layer table scrolls inside .rq-scroll-x on a phone, not the page. */
+  @media (max-width: 768px) {
+    .layers {
+      min-width: 420px;
+    }
   }
   .layers th {
     text-align: left;
