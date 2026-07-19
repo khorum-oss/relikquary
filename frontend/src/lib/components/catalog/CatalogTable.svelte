@@ -123,9 +123,17 @@
   tbody tr:hover {
     background: var(--rq-row-hover);
   }
+  /* Stack the type badge above the name so every name sits directly below its tag. */
+  .coord {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
   .coord a {
     font-family: var(--rq-mono);
     color: var(--rq-gold);
+    overflow-wrap: anywhere;
   }
   .type-badge {
     display: inline-block;
@@ -134,7 +142,6 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 1px 6px;
-    margin-right: 8px;
     border: 1px solid currentColor;
     border-radius: 999px;
     vertical-align: middle;
