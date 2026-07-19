@@ -56,6 +56,24 @@ body {
   box-sizing: border-box;
 }
 
+/*
+ * Responsive baseline (feature 025). A single breakpoint separates "narrow" (phone / small tablet, drawer
+ * navigation, reflowed/bounded-scroll content) from "wide" (desktop, permanent rail — unchanged). All
+ * responsive rules live in `@media (max-width: 768px)` blocks so the desktop layout is untouched at wide
+ * widths. The page itself must never scroll sideways; wide tables scroll inside their own region instead.
+ */
+html,
+body {
+  max-width: 100%;
+}
+
+/* Bounded horizontal-scroll wrapper for a table wider than a narrow screen: the region scrolls, not the page. */
+.rq-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
 a {
   color: var(--rq-gold);
   text-decoration: none;
@@ -135,4 +153,11 @@ textarea:focus {
 
 .rq-mono {
   font-family: var(--rq-mono);
+}
+
+/* Feature 025: comfortable tap size for shared buttons on touch screens; desktop density is untouched. */
+@media (max-width: 768px) {
+  .rq-btn {
+    min-height: 44px;
+  }
 }

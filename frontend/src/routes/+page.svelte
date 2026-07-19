@@ -71,4 +71,11 @@
     padding: 0;
     margin: 0;
   }
+  /* Feature 025: comfortable tap targets for the view tabs on touch screens. */
+  @media (max-width: 768px) {
+    .tabs button {
+      padding: 11px 18px;
+      min-height: 44px;
+    }
+  }
 </style>

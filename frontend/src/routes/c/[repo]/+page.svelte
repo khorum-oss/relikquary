@@ -178,6 +178,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
   .row:hover {
     background: var(--rq-row-hover);
@@ -186,6 +187,8 @@
     font-family: var(--rq-mono);
     font-size: 13px;
     color: var(--rq-gold);
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .meta {
     display: flex;
@@ -193,6 +196,16 @@
     gap: 0.6rem;
     color: var(--rq-dim);
     font-size: 0.8rem;
+  }
+  /* Feature 025: on a phone let the metadata wrap under the image name instead of overflowing the row. */
+  @media (max-width: 768px) {
+    .row {
+      flex-wrap: wrap;
+      padding: 14px 16px;
+    }
+    .meta {
+      flex-wrap: wrap;
+    }
   }
   .dot {
     color: var(--rq-border-strong);

@@ -60,29 +60,31 @@
 {:else if loaded && rows.length === 0}
   <EmptyState message={`No artifacts match “${searchQuery()}”.`} />
 {:else}
-  <table class="rq-panel" data-testid="catalog">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Latest</th>
-        <th class="right">Versions</th>
-        <th class="right">Size</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each rows as e (`${e.repository}:${e.type}:${e.group}:${e.artifact}`)}
-        <tr data-testid="catalog-row">
-          <td class="coord">
-            <span class="type-badge {e.type}" data-testid="catalog-type">{e.type}</span>
-            <a href={href(e)} data-testid="catalog-link">{displayName(e)}</a>
-          </td>
-          <td>{#if e.latestVersion}<span class="version">{e.latestVersion}</span>{:else}<span class="dim">—</span>{/if}</td>
-          <td class="right dim">{e.versionCount}</td>
-          <td class="right dim">{fmtBytes(e.sizeBytes)}</td>
+  <div class="rq-scroll-x" data-testid="catalog-scroll">
+    <table class="rq-panel" data-testid="catalog">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Latest</th>
+          <th class="right">Versions</th>
+          <th class="right">Size</th>
         </tr>
-      {/each}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {#each rows as e (`${e.repository}:${e.type}:${e.group}:${e.artifact}`)}
+          <tr data-testid="catalog-row">
+            <td class="coord">
+              <span class="type-badge {e.type}" data-testid="catalog-type">{e.type}</span>
+              <a href={href(e)} data-testid="catalog-link">{displayName(e)}</a>
+            </td>
+            <td>{#if e.latestVersion}<span class="version">{e.latestVersion}</span>{:else}<span class="dim">—</span>{/if}</td>
+            <td class="right dim">{e.versionCount}</td>
+            <td class="right dim">{fmtBytes(e.sizeBytes)}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
   {#if truncated}
     <p class="truncated">Showing the first {all.length} artifacts — refine your search to narrow the list.</p>
   {/if}
@@ -93,6 +95,12 @@
     width: 100%;
     border-collapse: collapse;
     overflow: hidden;
+  }
+  /* Feature 025: keep the columns legible on a phone — the table scrolls inside .rq-scroll-x, not the page. */
+  @media (max-width: 768px) {
+    table {
+      min-width: 460px;
+    }
   }
   th {
     text-align: left;
@@ -115,9 +123,17 @@
   tbody tr:hover {
     background: var(--rq-row-hover);
   }
+  /* Stack the type badge above the name so every name sits directly below its tag. */
+  .coord {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+  }
   .coord a {
     font-family: var(--rq-mono);
     color: var(--rq-gold);
+    overflow-wrap: anywhere;
   }
   .type-badge {
     display: inline-block;
@@ -126,7 +142,6 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     padding: 1px 6px;
-    margin-right: 8px;
     border: 1px solid currentColor;
     border-radius: 999px;
     vertical-align: middle;

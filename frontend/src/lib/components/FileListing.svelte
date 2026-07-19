@@ -34,40 +34,48 @@
   }
 </script>
 
-<table class="rq-panel" data-testid="listing">
-  <thead>
-    <tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr>
-  </thead>
-  <tbody>
-    {#each entries as entry (entry.name)}
-      <tr>
-        <td class="name">
-          {#if entry.kind === 'folder'}
-            <span class="ico">▸</span>
-            <a href={`/r/${repo}/${join(path, entry.name)}`}>{entry.name}/</a>
-          {:else}
-            <span class="ico">·</span>
-            <button class="link" onclick={() => onOpen(entry.name)} data-testid="file">{entry.name}</button>
-          {/if}
-        </td>
-        <td class="dim">{fmtSize(entry.size)}</td>
-        <td class="dim">{entry.lastModified ? new Date(entry.lastModified).toLocaleString() : ''}</td>
-        <td class="right">
-          <button class="danger" onclick={() => onDelete(entry.name)} data-testid="delete">Delete</button>
-        </td>
-      </tr>
-    {/each}
-    {#if entries.length === 0}
-      <tr><td colspan="4" class="empty">Empty</td></tr>
-    {/if}
-  </tbody>
-</table>
+<div class="rq-scroll-x" data-testid="listing-scroll">
+  <table class="rq-panel" data-testid="listing">
+    <thead>
+      <tr><th>Name</th><th>Size</th><th>Modified</th><th></th></tr>
+    </thead>
+    <tbody>
+      {#each entries as entry (entry.name)}
+        <tr>
+          <td class="name">
+            {#if entry.kind === 'folder'}
+              <span class="ico">▸</span>
+              <a href={`/r/${repo}/${join(path, entry.name)}`}>{entry.name}/</a>
+            {:else}
+              <span class="ico">·</span>
+              <button class="link" onclick={() => onOpen(entry.name)} data-testid="file">{entry.name}</button>
+            {/if}
+          </td>
+          <td class="dim">{fmtSize(entry.size)}</td>
+          <td class="dim">{entry.lastModified ? new Date(entry.lastModified).toLocaleString() : ''}</td>
+          <td class="right">
+            <button class="danger" onclick={() => onDelete(entry.name)} data-testid="delete">Delete</button>
+          </td>
+        </tr>
+      {/each}
+      {#if entries.length === 0}
+        <tr><td colspan="4" class="empty">Empty</td></tr>
+      {/if}
+    </tbody>
+  </table>
+</div>
 
 <style>
   table {
     width: 100%;
     border-collapse: collapse;
     overflow: hidden;
+  }
+  /* Feature 025: the listing scrolls inside .rq-scroll-x on a phone, not the page. */
+  @media (max-width: 768px) {
+    table {
+      min-width: 440px;
+    }
   }
   th {
     text-align: left;

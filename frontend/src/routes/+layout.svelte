@@ -64,6 +64,7 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    padding: 16px;
   }
   .grid {
     position: absolute;
@@ -74,7 +75,7 @@
   }
   .card {
     position: relative;
-    width: 390px;
+    width: min(390px, 100%);
     background: var(--rq-shell);
     border-color: var(--rq-border-strong);
   }

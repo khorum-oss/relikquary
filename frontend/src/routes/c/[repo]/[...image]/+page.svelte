@@ -157,36 +157,38 @@
     <EmptyState testid="no-tags"
       message="No tags recorded for this image. On a proxy repository, tags are resolved live from the upstream and are not listed here." />
   {:else}
-    <table class="tags" data-testid="tag-table">
-      <thead>
-        <tr>
-          <th>Tag</th>
-          <th>Digest</th>
-          <th>Size</th>
-          <th>Pushed</th>
-          {#if canDelete}<th class="actions" aria-label="Actions"></th>{/if}
-        </tr>
-      </thead>
-      <tbody>
-        {#each data.tags as t (t.tag)}
-          <tr data-testid="tag-row" class:open={openTag?.tag === t.tag}>
-            <td class="tag">
-              <button class="tag-btn" data-testid="tag-open" onclick={() => toggle(t)}>{t.tag}</button>
-              <TrustBadge trust={t.trust} />
-            </td>
-            <td class="digest" title={t.digest} data-testid="tag-digest">{shortDigest(t.digest)}</td>
-            <td class="size">{fmtSize(t.size)}</td>
-            <td class="pushed">{fmtDate(t.pushedAt)}</td>
-            {#if canDelete}
-              <td class="actions">
-                <button class="delete-btn" data-testid="tag-delete" title={`Delete tag ${t.tag}`}
-                  onclick={() => del(t.tag)}>Delete</button>
-              </td>
-            {/if}
+    <div class="rq-scroll-x" data-testid="tag-table-scroll">
+      <table class="tags" data-testid="tag-table">
+        <thead>
+          <tr>
+            <th>Tag</th>
+            <th>Digest</th>
+            <th>Size</th>
+            <th>Pushed</th>
+            {#if canDelete}<th class="actions" aria-label="Actions"></th>{/if}
           </tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each data.tags as t (t.tag)}
+            <tr data-testid="tag-row" class:open={openTag?.tag === t.tag}>
+              <td class="tag">
+                <button class="tag-btn" data-testid="tag-open" onclick={() => toggle(t)}>{t.tag}</button>
+                <TrustBadge trust={t.trust} />
+              </td>
+              <td class="digest" title={t.digest} data-testid="tag-digest">{shortDigest(t.digest)}</td>
+              <td class="size">{fmtSize(t.size)}</td>
+              <td class="pushed">{fmtDate(t.pushedAt)}</td>
+              {#if canDelete}
+                <td class="actions">
+                  <button class="delete-btn" data-testid="tag-delete" title={`Delete tag ${t.tag}`}
+                    onclick={() => del(t.tag)}>Delete</button>
+                </td>
+              {/if}
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
     {#if openTag}
       <ManifestDetail {repo} digest={openTag.digest} />
     {/if}
@@ -228,6 +230,19 @@
     border-collapse: collapse;
     margin-top: 1rem;
     font-size: 13px;
+  }
+  /* Feature 025: the tag table scrolls inside .rq-scroll-x on a phone, not the page; tap targets grow. */
+  @media (max-width: 768px) {
+    .tags {
+      min-width: 480px;
+    }
+    .tag-btn {
+      padding: 8px 0;
+      min-height: 44px;
+    }
+    .delete-btn {
+      padding: 0.5rem 0.8rem;
+    }
   }
   .tags th {
     text-align: left;

@@ -4,16 +4,25 @@
   // The persistent navigation rail (feature 016). Active section derives from the current pathname;
   // the footer holds the session affordance (sign in, or current user + sign out). Anonymous use is
   // supported, so signing in is optional — it is not a gate.
+  //
+  // Responsive (feature 025): the same markup is the permanent rail at wide widths and an off-canvas
+  // overlay drawer at narrow widths. `open` slides it in; `onClose` is invoked when a destination is
+  // chosen so the drawer dismisses on navigate. The section list and session footer are identical in both
+  // modes (one source of truth).
   let {
     pathname,
     user,
     onSignIn,
     onSignOut,
+    open = false,
+    onClose = () => {},
   }: {
     pathname: string;
     user: string | null;
     onSignIn: () => void;
     onSignOut: () => void;
+    open?: boolean;
+    onClose?: () => void;
   } = $props();
 
   const items = [
@@ -27,15 +36,15 @@
   let initial = $derived((user ?? 'g').charAt(0).toUpperCase());
 </script>
 
-<aside class="rail">
-  <a class="brand" href="/">
+<aside class="rail" class:open data-testid="nav-drawer">
+  <a class="brand" href="/" onclick={onClose}>
     <Sigil size={24} />
     <span>Relikquary</span>
   </a>
 
   <nav>
     {#each items as item (item.href)}
-      <a class="nav" class:active={item.match(pathname)} href={item.href}>{item.label}</a>
+      <a class="nav" class:active={item.match(pathname)} href={item.href} onclick={onClose}>{item.label}</a>
     {/each}
   </nav>
 
@@ -127,5 +136,37 @@
     font-family: var(--rq-serif);
     font-size: 12px;
     color: var(--rq-gold);
+  }
+
+  /* Narrow: present the rail as an off-canvas overlay drawer, slid in when `open` (feature 025). Touch
+     targets are enlarged for comfortable tapping. Wide widths keep the permanent static rail above. */
+  @media (max-width: 768px) {
+    .rail {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 41;
+      width: 264px;
+      min-width: 264px;
+      max-width: 82vw;
+      transform: translateX(-100%);
+      transition: transform 0.22s ease;
+      box-shadow: 2px 0 18px rgba(0, 0, 0, 0.5);
+    }
+    .rail.open {
+      transform: translateX(0);
+    }
+    .nav {
+      padding: 14px 18px;
+      font-size: 15px;
+    }
+    .brand {
+      padding: 18px;
+      min-height: 44px;
+    }
+    .session .rq-btn {
+      padding: 12px 16px;
+    }
   }
 </style>
