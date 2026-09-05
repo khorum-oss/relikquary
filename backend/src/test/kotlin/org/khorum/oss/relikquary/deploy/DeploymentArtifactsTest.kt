@@ -53,6 +53,28 @@ class DeploymentArtifactsTest {
     }
 
     @Test
+    fun `nginx template lifts the body-size cap at server scope, not only in the proxy block`() {
+        val text = read("nginx/default.conf.template")
+        // Regression guard for HS-13. nginx matches `location /` before the `try_files ... @backend`
+        // internal redirect, and enforces client_max_body_size there — so the directive must live at
+        // SERVER scope. Confined to `location @backend` it is dead: nginx's 1 MB default still applies
+        // and every large single-PUT upload (a Maven jar, an OCI blob) 413s before reaching the backend.
+        // Directives only — a comment mentioning a location block must not count either way.
+        val directives = text.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .toList()
+        val serverScope = directives
+            .dropWhile { !it.startsWith("server {") }
+            .drop(1)
+            .takeWhile { !it.startsWith("location ") }
+        assertTrue(serverScope.any { it == "client_max_body_size 0;" }) {
+            "client_max_body_size 0 must be set at server scope (before any location block), or large " +
+                "uploads 413 in location / before reaching @backend — see HS-13"
+        }
+    }
+
+    @Test
     fun `compose enables auth, persists storage, and healthchecks the backend`() {
         val text = read("docker-compose.yml")
         assertTrue(text.contains("RELIKQUARY_SECURITY_USERS_0_ROLES_0: PUBLISH")) {
