@@ -1,0 +1,40 @@
+# Kontinuance gates this repo's PRs: GitHub Actions dispatches the build to the self-hosted Kontinuance
+# server and this job's pass/fail IS the gate — there is no separate commit status to wait on.
+#
+# Fork PRs are gated by ci.yml instead. A `pull_request` event from a fork gets no secrets, so this job
+# could not authenticate even if we wanted it to; running a stranger's build scripts on the runner host is
+# the thing we are avoiding. See hestia-systems specs/2026-09-13-github-kontinuance-dispatch-design.md §5.
+name: Kontinuance
+
+on: pull_request
+
+concurrency:
+  group: kontinuance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # DO NOT add a `name:` to this job. GitHub takes the check's context from `name:` when present and from
+  # the job id otherwise, so naming it would rename the required check to something branch protection is
+  # not asking for — and the gate would silently stop blocking merges.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch to Kontinuance and wait
+        env:
+          KONTINUANCE_URL: ${{ vars.KONTINUANCE_URL }}
+          KONTINUANCE_CI_TOKEN: ${{ secrets.KONTINUANCE_CI_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          if [ "$IS_FORK" = "true" ]; then
+            echo "Fork PR: gated by ci.yml on GitHub-hosted runners."
+            echo "Kontinuance is not dispatched, and the secrets this step needs are unavailable to forks by design."
+            exit 0
+          fi
+          bash .github/scripts/kontinuance-wait.sh
