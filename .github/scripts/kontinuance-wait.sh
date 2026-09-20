@@ -38,8 +38,30 @@ body="$(jq -nc \
   --argjson pr "${PR_NUMBER:-null}" \
   '{repo: $repo, sha: $sha, ref: $ref, prNumber: $pr}')"
 
-response="$(curl -sS --fail-with-body -X POST "${KONTINUANCE_URL}/api/ci/dispatch" \
-  "${auth[@]}" -H 'Content-Type: application/json' -d "$body")"
+# Capture body and status separately. `--fail-with-body` writes the body to stdout and exits nonzero, but
+# under command substitution + `set -e` the script dies before anything is printed — so a 403 from the edge
+# arrives as a bare "curl: (22)" with no indication of which layer refused. Diagnose here instead.
+http_code=""
+if ! response="$(curl -sS -w '\n%{http_code}' -X POST "${KONTINUANCE_URL}/api/ci/dispatch" \
+  "${auth[@]}" -H 'Content-Type: application/json' -d "$body")"; then
+  echo "dispatch request failed to complete: $response" >&2
+  exit 1
+fi
+http_code="${response##*$'\n'}"
+response="${response%$'\n'*}"
+
+if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
+  echo "dispatch returned HTTP $http_code" >&2
+  case "$http_code" in
+    403) echo "  Cloudflare Access authenticated the service token but DENIED it — the policy on this" >&2
+         echo "  application does not admit it (check its action is 'Service Auth', and any Require rules)" >&2 ;;
+    302) echo "  bounced to the Access login — the service token was not recognised at all" >&2 ;;
+    401) echo "  reached Kontinuance; the bearer token (KONTINUANCE_CI_TOKEN) was refused" >&2 ;;
+    400) echo "  reached Kontinuance and authenticated; the request body was rejected" >&2 ;;
+  esac
+  echo "  body: $(printf '%s' "$response" | head -c 500)" >&2
+  exit 1
+fi
 
 run_id="$(printf '%s' "$response" | jq -r '.runId // empty')"
 if [ -z "$run_id" ]; then
