@@ -52,9 +52,18 @@ response="${response%$'\n'*}"
 
 if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
   echo "dispatch returned HTTP $http_code" >&2
+  # A bot challenge and an Access denial are both 403. Only the body separates them, which is why it is
+  # printed below — "Just a moment..." is Cloudflare's interstitial, served BEFORE Access policies run.
   case "$http_code" in
-    403) echo "  Cloudflare Access authenticated the service token but DENIED it — the policy on this" >&2
-         echo "  application does not admit it (check its action is 'Service Auth', and any Require rules)" >&2 ;;
+    403)
+      if printf '%s' "$response" | grep -qiE "just a moment|cf-browser-verification|challenge-platform"; then
+        echo "  Cloudflare served a BOT CHALLENGE, not an Access decision. A datacentre IP (this runner)" >&2
+        echo "  tripped Bot Fight Mode / a managed challenge before Access was consulted." >&2
+        echo "  Fix: WAF -> Custom rules -> Skip for this hostname's /api/ paths (or exempt the token)." >&2
+      else
+        echo "  Cloudflare Access authenticated the service token but DENIED it — the policy on this" >&2
+        echo "  application does not admit it (check its action is 'Service Auth', and any Require rules)" >&2
+      fi ;;
     302) echo "  bounced to the Access login — the service token was not recognised at all" >&2 ;;
     401) echo "  reached Kontinuance; the bearer token (KONTINUANCE_CI_TOKEN) was refused" >&2 ;;
     400) echo "  reached Kontinuance and authenticated; the request body was rejected" >&2 ;;
