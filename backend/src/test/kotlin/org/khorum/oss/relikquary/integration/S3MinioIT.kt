@@ -8,6 +8,7 @@ import org.khorum.oss.relikquary.storage.S3ArtifactStorage
 import org.testcontainers.containers.MinIOContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
@@ -57,6 +58,13 @@ class S3MinioIT {
 
         @Container
         @JvmStatic
-        val minio: MinIOContainer = MinIOContainer("minio/minio:RELEASE.2024-01-16T16-07-38Z")
+        val minio: MinIOContainer = MinIOContainer(DockerImageName
+            // Docker Hub stopped serving minio/minio (404 "pull access denied"), which made this a
+            // required-check failure with no repo change behind it. quay.io is MinIO's own registry and
+            // carries the SAME tag, so this is a registry move, not a version bump.
+            .parse("quay.io/minio/minio:RELEASE.2024-01-16T16-07-38Z")
+            // Testcontainers compares the unversioned name against what MinIOContainer expects, and
+            // "quay.io/minio/minio" is not "minio/minio" — without this it refuses to start.
+            .asCompatibleSubstituteFor("minio/minio"))
     }
 }
