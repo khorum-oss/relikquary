@@ -21,7 +21,7 @@ import java.time.Duration
 /**
  * A REAL Docker Hub pull-through of a small official image through the `dockerhub` proxy (feature 018),
  * guarded to auto-skip when Docker Hub is unreachable (offline / egress-restricted CI) — mirroring the
- * guarded real-Maven-Central test (spec 006) and MinIO test (spec 003). When it runs it proves the live
+ * guarded real-Maven-Central test (spec 006). When it runs it proves the live
  * Bearer-token handshake, `library/` normalization, and manifest-index passthrough end-to-end (SC-001).
  *
  * This uses the default upstream (registry-1.docker.io); RELIKQUARY_DOCKERHUB_URL is NOT overridden.

@@ -22,7 +22,7 @@ import java.time.Duration
 /**
  * Guarded round-trip against the real Maven Central upstream (feature 006): proves the `maven-central`
  * proxy resolves and caches a real artifact end-to-end. **Auto-skipped when Central is unreachable**
- * (offline/CI without egress), mirroring the Docker-guarded MinIO test in feature 003 — so it adds
+ * (offline/CI without egress), mirroring the s3mock-backed S3 tests in feature 003 — so it adds
  * external-upstream realism where the network allows without making the suite flaky where it doesn't.
  */
 @SpringBootTest(

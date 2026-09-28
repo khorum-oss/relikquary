@@ -33,7 +33,6 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.testcontainers.junit)
-    testImplementation(libs.testcontainers.minio)
     // ContainerStorageS3IT builds an S3ArtifactStorage directly, so the AWS SDK is needed at compile time
     // (backend declares it `implementation`, which is not exposed to consumers' compile classpath).
     testImplementation(libs.aws.s3)

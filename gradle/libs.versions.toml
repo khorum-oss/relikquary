@@ -48,7 +48,6 @@ hibernate-community-dialects = { module = "org.hibernate.orm:hibernate-community
 # Testing
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 testcontainers-junit = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
-testcontainers-minio = { module = "org.testcontainers:minio", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 # s3mock-exec (runnable jar) is consumed via a dedicated configuration in backend/build.gradle.kts
 

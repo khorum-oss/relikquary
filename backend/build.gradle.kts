@@ -78,7 +78,6 @@ dependencies {
     testImplementation(libs.spring.security.test)
     testImplementation(libs.mockk)
     testImplementation(libs.testcontainers.junit)
-    testImplementation(libs.testcontainers.minio)
     testImplementation(libs.testcontainers.postgresql)
 
     s3mock("com.adobe.testing:s3mock:${libs.versions.s3mock.get()}:exec") { isTransitive = false }
