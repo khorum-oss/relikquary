@@ -85,7 +85,20 @@ spec:
               memory: "512Mi"
             limits:
               cpu: "1"
-              memory: "1Gi"
+              # 6Gi, not 1Gi: the container registry's blob upload path buffers whole blobs in heap
+              # (BlobUploadService.finalize reads the pending blob with readBytes(); accumulate does a
+              # read-modify-write per chunk, so peak use is ~2x blob size). With a 1Gi limit the default
+              # max heap is ~256Mi, and `docker push` of a real app image OOMed on the blob-commit PUT —
+              # surfacing to the client as a bare 500 with the cause only in the pod log.
+              #
+              # This is HEADROOM, not the fix: a large enough layer still OOMs and concurrent pushes
+              # multiply it. The fix is to stream blobs through to storage — hestia-systems HS-29.
+              memory: "6Gi"
+          env:
+            # Without this the JVM takes ~25% of the container limit. The registry path needs the
+            # headroom the limit above provides, so hand the JVM most of it.
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75"
           volumeMounts:
             - name: data
               mountPath: /data

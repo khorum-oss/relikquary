@@ -26,7 +26,7 @@ import java.time.Duration
  * byte-identical to the upstream, a cache entry is written, and a second resolve is served from that cache.
  *
  * Guarded to auto-skip when Maven Central is unreachable (offline / egress-restricted CI), mirroring the
- * guarded real-Central round-trip (spec 006) and the s3mock + MinIO split (spec 003). The deterministic,
+ * guarded real-Central round-trip (spec 006) and the s3mock-backed S3 tests (spec 003). The deterministic,
  * always-on coverage of the same behaviour lives in [ProxyStreamingCacheIT] against the in-process stub;
  * this adds the real-upstream, real-checksum confirmation the manual step used to provide.
  */
