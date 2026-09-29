@@ -86,7 +86,11 @@ class ContainerHostedEndpoints(
 
     private fun patchUpload(repo: RepositoryProperties.Repo, ref: ImageReference, request: HttpServletRequest): ResponseEntity<*> {
         val row = blobUploads.session(ref.reference) ?: return uploadUnknown()
-        val received = blobUploads.append(row, request.inputStream)
+        // The client's Content-Range wins: it is what makes a retried chunk land on its own key again
+        // instead of being appended twice. Falling back to the session's count covers a client that
+        // omits it, which is the sequential case.
+        val offset = BlobUploadService.parseChunkOffset(request.getHeader(CONTENT_RANGE)) ?: row.bytesReceived
+        val received = blobUploads.append(row, request.inputStream, offset)
         val location = OciPaths.uploadLocation(repo.name, ref.imageName, ref.reference)
         return OciResponses.uploadProgress(location, ref.reference, received)
     }
@@ -96,7 +100,8 @@ class ContainerHostedEndpoints(
             ?: return OciResponses.error(HttpStatus.BAD_REQUEST, "DIGEST_INVALID", "missing digest on upload finalize")
         val digest = Digest.parse(param)
         val row = blobUploads.session(ref.reference) ?: return uploadUnknown()
-        blobUploads.finalize(row, request.inputStream, digest)
+        val offset = BlobUploadService.parseChunkOffset(request.getHeader(CONTENT_RANGE)) ?: row.bytesReceived
+        blobUploads.finalize(row, request.inputStream, digest, offset)
         metrics.recordPublish(repo.name, "accepted")
         return OciResponses.blobCreated(OciPaths.blobLocation(repo.name, ref.imageName, digest), digest)
     }
@@ -119,5 +124,6 @@ class ContainerHostedEndpoints(
 
     private companion object {
         const val OCI_MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
+        const val CONTENT_RANGE = "Content-Range"
     }
 }

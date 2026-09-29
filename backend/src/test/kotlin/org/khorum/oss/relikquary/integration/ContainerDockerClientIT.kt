@@ -15,9 +15,19 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Feature 021 (US2 optional): the gold-standard real-client check — a genuine `docker` build/push/pull
- * round-trip through the hosted registry. Gated on Docker-daemon availability, so it runs where a daemon
- * exists and is SKIPPED (never failed) where it does not (e.g. CI or sandboxes without a daemon), keeping
- * the core round-trip suite hermetic. Uses a `FROM scratch` image so no source registry is contacted.
+ * round-trip through the hosted registry. Gated so it runs where it can and is SKIPPED (never failed)
+ * where it cannot, keeping the core round-trip suite hermetic. Uses a `FROM scratch` image so no source
+ * registry is contacted.
+ *
+ * **The precondition is reachability, not merely a daemon.** This test serves the registry from the JVM
+ * on `127.0.0.1`, so it needs a daemon that shares *this host's* loopback. Docker Desktop on macOS and a
+ * native Linux daemon do; a VM-backed daemon such as Colima does not — there `127.0.0.1` is the VM, and
+ * the push dies with `connect: connection refused` against a port that is in fact listening. That is an
+ * environment limitation rather than a registry defect, so it aborts as skipped and says why.
+ *
+ * Command output is captured and surfaced in failure messages. It used to be discarded, which made a
+ * real failure here read only as `expected: <0> but was: <1>` — the cause (a missing credential helper)
+ * was invisible until the command was re-run by hand.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -52,18 +62,37 @@ class ContainerDockerClientIT {
         Files.writeString(ctx.resolve("Dockerfile"), "FROM scratch\nCOPY payload /payload\n")
         val ref = "127.0.0.1:$port/apps/dockerclient:it"
 
-        assertEquals(EXIT_OK, run("docker", "build", "-t", ref, ctx.toString()), "docker build")
-        assertEquals(EXIT_OK, run("docker", "push", ref), "docker push to the hosted registry")
-        // Remove the local copy so the pull actually fetches from our registry.
-        run("docker", "rmi", "-f", ref)
-        assertEquals(EXIT_OK, run("docker", "pull", ref), "docker pull back from the hosted registry")
+        val build = exec("docker", "build", "-t", ref, ctx.toString())
+        assertEquals(EXIT_OK, build.exit, "docker build\n${build.output}")
 
-        run("docker", "rmi", "-f", ref)
+        val push = exec("docker", "push", ref)
+        // A daemon that cannot route to this JVM's loopback (a VM-backed one, e.g. Colima) fails here
+        // before the registry is ever consulted. Skip rather than report a registry defect that isn't one.
+        assumeTrue(
+            !push.unreachable(),
+            "docker daemon cannot reach the test registry on 127.0.0.1:$port — " +
+                "it does not share this host's loopback (VM-backed daemon?); skipping the round-trip",
+        )
+        assertEquals(EXIT_OK, push.exit, "docker push to the hosted registry\n${push.output}")
+
+        // Remove the local copy so the pull actually fetches from our registry.
+        exec("docker", "rmi", "-f", ref)
+        val pull = exec("docker", "pull", ref)
+        assertEquals(EXIT_OK, pull.exit, "docker pull back from the hosted registry\n${pull.output}")
+
+        exec("docker", "rmi", "-f", ref)
+    }
+
+    /** A finished command: its exit code and combined stdout+stderr. */
+    private inner class Executed(val exit: Int, val output: String) {
+        /** Whether the daemon failed to reach our test server, rather than being rejected by it. */
+        fun unreachable(): Boolean =
+            output.contains("connection refused") || output.contains("no route to host")
     }
 
     private fun dockerAvailable(): Boolean =
         try {
-            run("docker", "info") == EXIT_OK
+            exec("docker", "info").exit == EXIT_OK
         } catch (_: IOException) {
             false
         } catch (_: InterruptedException) {
@@ -71,16 +100,17 @@ class ContainerDockerClientIT {
             false
         }
 
-    /** Runs a command, returns its exit code (or a non-zero sentinel on timeout). Output is discarded. */
-    private fun run(vararg command: String): Int {
-        val process = ProcessBuilder(*command)
-            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-            .redirectError(ProcessBuilder.Redirect.DISCARD)
-            .start()
+    /**
+     * Runs a command and returns its exit code with its combined output (a non-zero sentinel on timeout).
+     * The stream is drained before waiting, so a chatty command cannot fill the pipe buffer and deadlock.
+     */
+    private fun exec(vararg command: String): Executed {
+        val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
         if (!process.waitFor(CMD_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
             process.destroyForcibly()
-            return -1
+            return Executed(-1, output)
         }
-        return process.exitValue()
+        return Executed(process.exitValue(), output)
     }
 }
