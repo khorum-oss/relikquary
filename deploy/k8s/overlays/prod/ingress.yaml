@@ -15,6 +15,11 @@ metadata:
     cert-manager.io/cluster-issuer: hestia-ca
     nginx.ingress.kubernetes.io/ssl-redirect: "false"      # HTTP :30080 stays; HTTPS on :30443 — don't 308 (NodePort has no :443)
     nginx.ingress.kubernetes.io/proxy-body-size: "0"       # large artifact uploads (Maven/OCI)
+    # A container-registry blob commit is one long PUT: the backend finalizes a multi-hundred-MB
+    # layer before it answers. nginx-ingress defaults to 60s, which returns 504 on a real image
+    # layer while the upload is still perfectly healthy -- the push then reads as a registry fault.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"  # blob commit of a real layer, not a demo one
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
 spec:
   ingressClassName: nginx
   tls:
