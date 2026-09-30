@@ -1,0 +1,72 @@
+# Manually re-trigger a Kontinuance run for any commit, without needing a PR event.
+#
+# Why this exists: `kontinuance-gate.yml` fires on `pull_request` only, so the only ways to re-run a build
+# were to re-run that Actions job (`gh run rerun`, or the UI button) or to push another commit. Neither
+# helps when you want to rebuild `main`, or a commit whose PR is already merged, or to retry after fixing
+# something on the Mini itself rather than in the code.
+#
+# ── WHAT THIS RUNS, AND WHAT IT DOES NOT ─────────────────────────────────────────────────────────────
+# `POST /api/ci/dispatch` will only ever run the repository's configured `prPipeline` — the checks-and-
+# build pipeline. A caller may *assert* which pipeline it expects but never *select* one, deliberately:
+# the endpoint is reachable through Cloudflare Access with a service token, so letting a caller name an
+# arbitrary descriptor would let it run anything on the Mini with that host's credentials.
+#
+# So this re-runs the GATE. It does NOT deliver. Triggering `relikquary-cd-stage` needs a second
+# allow-listed entry in the binding config (a `pushPipeline`) plus an explicit event kind on the request,
+# so the server still chooses from its own list. See hestia-systems ops/pipeline-readiness.md.
+name: Kontinuance (manual re-run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to build (full 40-char SHA). Defaults to the head of the chosen ref."
+        required: false
+        type: string
+      pr_number:
+        description: "PR number, if this commit belongs to one. Only affects reporting."
+        required: false
+        type: string
+
+# Keyed on the SHA rather than the ref: two dispatches for the same commit are the same build, and
+# Kontinuance answers the second with `AlreadyRunning` and attaches to the first anyway.
+concurrency:
+  group: kontinuance-rerun-${{ inputs.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  # NOT named `gate`, and deliberately so. GitHub derives a check's context from the job id when no
+  # `name:` is set, so calling this `gate` would publish a second check under the context branch
+  # protection requires — and a manual re-run could then satisfy, or break, the required check.
+  rerun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch to Kontinuance and wait
+        env:
+          KONTINUANCE_URL: ${{ vars.KONTINUANCE_URL }}
+          KONTINUANCE_CI_TOKEN: ${{ secrets.KONTINUANCE_CI_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          HEAD_SHA: ${{ inputs.sha || github.sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          # The dispatcher pins the build to this exact commit (ProjectSourceInjector), so a short SHA or
+          # a branch name would either be rejected or, worse, resolve to something else. Fail here instead.
+          if ! printf '%s' "$HEAD_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "HEAD_SHA must be a full 40-character SHA, got: '$HEAD_SHA'" >&2
+            echo "Pass one explicitly, or dispatch against a ref whose head you want built." >&2
+            exit 1
+          fi
+          # kontinuance-wait.sh feeds this to `jq --argjson`, which needs valid JSON. A non-numeric value
+          # would die inside jq with a parse error that says nothing about where it came from. Both inputs
+          # reach the shell as environment variables rather than `${{ }}` interpolation, so neither can
+          # inject shell — this guard is about a legible failure, not containment.
+          if [ -n "${PR_NUMBER:-}" ] && ! printf '%s' "$PR_NUMBER" | grep -qE '^[0-9]+$'; then
+            echo "pr_number must be numeric if given, got: '$PR_NUMBER'" >&2
+            exit 1
+          fi
+          echo "re-running Kontinuance for $HEAD_SHA"
+          bash .github/scripts/kontinuance-wait.sh
