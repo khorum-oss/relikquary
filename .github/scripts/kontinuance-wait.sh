@@ -21,6 +21,11 @@ auth=(
 
 run_id=""
 
+# Captures what the live stream managed to print, so the polling fallback can resume from that point
+# instead of replaying the whole log.
+streamed="$(mktemp)"
+trap 'rm -f "$streamed"' EXIT
+
 # Cancelling the Actions job must not leave a ~14-minute build occupying the runner host.
 cancel_run() {
   if [ -n "$run_id" ]; then
@@ -83,25 +88,64 @@ echo "kontinuance run ${run_id} ($(printf '%s' "$response" | jq -r '.status'))"
 echo "::group::build output"
 curl -sS --no-buffer "${auth[@]}" "${KONTINUANCE_URL}/api/runs/${run_id}/logs/stream" \
   | sed -u -n 's/^data://p' \
-  || echo "log stream dropped; falling back to polling for the verdict" >&2
+  | tee "$streamed" \
+  || echo "log stream dropped; polling the log endpoint instead (see note below)" >&2
 echo "::endgroup::"
 
-# The stream's terminal `end` event carries no verdict, so read the record. Also covers the case where the
-# stream dropped early: polling continues until the run actually settles.
-for _ in $(seq 1 120); do
+# How many lines the stream already showed, so the fallback resumes rather than replaying from the top.
+# The stream emits one `log` event per recorded line, so this indexes `.lines` directly. A log line
+# containing a newline is split across `data:` frames and would shift this by one or two — the cost is a
+# repeated or skipped line in the fallback, never a wrong verdict.
+printed="$(wc -l < "$streamed" | tr -d ' ')"
+
+# The stream's terminal `end` event carries no verdict, so read the record. This also covers the common
+# case where the stream dropped early.
+#
+# ── Why the stream drops, and why this loop prints ────────────────────────────────────────────────────
+# The SSE producer emits only on new log lines — there is no heartbeat. `:backend:test` runs for minutes
+# with no output, and Cloudflare terminates a streamed response that transmits nothing for ~100s. Measured
+# 2026-09-29: last line 02:19:54, reset 02:22:18 — 143s of silence, then
+# `curl: (92) HTTP/2 stream 1 was not closed cleanly: INTERNAL_ERROR (err 2)`. It is the proxy resetting an
+# idle stream, not the build stalling, and it happens at the same place every run.
+#
+# This loop therefore keeps printing: new log lines when there are any, and a liveness line when there are
+# not. Previously it polled silently until the run settled, so a healthy build looked identical to a hung
+# one for ten minutes. The durable fix is a heartbeat on the producer; this keeps the job legible either way.
+quiet=0
+for poll in $(seq 1 120); do
   record="$(curl -sS "${auth[@]}" "${KONTINUANCE_URL}/api/runs/${run_id}")"
-  case "$(printf '%s' "$record" | jq -r '.status')" in
+  status="$(printf '%s' "$record" | jq -r '.status')"
+
+  # Drain whatever the stream missed. Failures here are cosmetic — never let them end the run.
+  if logs="$(curl -sS "${auth[@]}" "${KONTINUANCE_URL}/api/runs/${run_id}/logs" 2>/dev/null)"; then
+    if new="$(printf '%s' "$logs" | jq -r --argjson n "$printed" '.lines[$n:][]' 2>/dev/null)" \
+      && [ -n "$new" ]; then
+      printf '%s\n' "$new"
+      printed="$(printf '%s' "$logs" | jq -r '.lines | length' 2>/dev/null || echo "$printed")"
+      quiet=0
+    else
+      quiet=$((quiet + 1))
+    fi
+  fi
+
+  case "$status" in
     Success)
       echo "kontinuance: Success"
       exit 0
       ;;
     Failed | Cancelled | Error)
-      echo "kontinuance: $(printf '%s' "$record" | jq -r '.status')" >&2
+      echo "kontinuance: $status" >&2
       printf '%s' "$record" | jq -r '.failingStep // empty, .reason // empty' >&2
       echo "full logs: ${KONTINUANCE_URL}/runs/${run_id}" >&2
       exit 1
       ;;
   esac
+
+  # A quiet build is the normal case during `:backend:test`. Say so every ~minute rather than every 15s,
+  # so the job reads as alive without burying the real output.
+  if [ "$quiet" -gt 0 ] && [ $((poll % 4)) -eq 0 ]; then
+    echo "… still ${status} (${poll} polls, no new output — a long quiet task, e.g. :backend:test)"
+  fi
   sleep 15
 done
 
