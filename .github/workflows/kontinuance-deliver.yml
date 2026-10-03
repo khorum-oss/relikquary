@@ -1,0 +1,50 @@
+# A merge to `main` is delivered to stage by Kontinuance: build, publish both images at an immutable
+# per-commit tag, render the manifests, push them to the hub, advance the Gitea mirror, sync ArgoCD, smoke.
+#
+# This is the push half of the gate in kontinuance-gate.yml. Both dispatch to the same endpoint; the
+# `event` kind is what makes this one run the repository's configured `pushPipeline`
+# (hestia-systems platform/deploy/pipelines/relikquary-cd-stage.yaml) instead of the PR descriptor. The
+# server chooses from its own allow-list — a caller cannot name a descriptor — so wiring delivery is a line
+# in that config, not a capability granted here.
+#
+# ── THIS IS NOT A REQUIRED CHECK, AND MUST NOT BECOME ONE ────────────────────────────────────────────
+# Branch protection asks for `gate`, which runs on `pull_request`. This job runs after the merge has already
+# happened; making it required would mean a *merged* commit could fail a check that no longer blocks
+# anything, and the job id is deliberately `deliver` so it can never be mistaken for the `gate` context.
+#
+# ── A FAILED DELIVERY MEANS main IS AHEAD OF STAGE ───────────────────────────────────────────────────
+# Nothing retries. Re-run this job, or use kontinuance-rerun.yml with pipeline=delivery to deliver a
+# specific SHA. Until then the cluster runs the previous commit while `main` says otherwise — the trap
+# recorded in hestia-systems ops/pipeline-readiness.md as "a merged PR is not a deployed PR".
+name: Kontinuance delivery
+
+on:
+  push:
+    branches: [main]
+
+# Never cancel a delivery in flight: it publishes images, pushes manifests to the hub and syncs the
+# cluster, so a half-run leaves the hub and the cluster disagreeing. Two merges in quick succession queue
+# instead, and the later commit delivers last — which is the order you want.
+concurrency:
+  group: kontinuance-deliver-main
+  cancel-in-progress: false
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    # Longer than the gate's 30: a delivery also publishes two ~670 MB images and waits on an ArgoCD sync.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dispatch delivery to Kontinuance and wait
+        env:
+          KONTINUANCE_URL: ${{ vars.KONTINUANCE_URL }}
+          KONTINUANCE_CI_TOKEN: ${{ secrets.KONTINUANCE_CI_TOKEN }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          HEAD_SHA: ${{ github.sha }}
+          KONTINUANCE_EVENT: push
+          # 220 x 15s ≈ 55 minutes, inside the job timeout above.
+          KONTINUANCE_MAX_POLLS: "220"
+        run: bash .github/scripts/kontinuance-wait.sh

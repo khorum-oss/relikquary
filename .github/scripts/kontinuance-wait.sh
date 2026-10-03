@@ -36,12 +36,17 @@ cancel_run() {
 }
 trap cancel_run INT TERM
 
+# `event` selects which of the repository's *configured* descriptors Kontinuance runs: `pr` (the gate,
+# and the default) or `push` (delivery). It is a kind, not a pipeline name — the server will not accept a
+# descriptor path from a caller, so this cannot be pointed at an arbitrary pipeline on the runner host.
+# A server that predates event selection ignores the field and runs the gate.
 body="$(jq -nc \
   --arg repo "$GITHUB_REPOSITORY" \
   --arg sha "$HEAD_SHA" \
   --arg ref "${GITHUB_REF:-}" \
+  --arg event "${KONTINUANCE_EVENT:-pr}" \
   --argjson pr "${PR_NUMBER:-null}" \
-  '{repo: $repo, sha: $sha, ref: $ref, prNumber: $pr}')"
+  '{repo: $repo, sha: $sha, ref: $ref, prNumber: $pr, event: $event}')"
 
 # Capture body and status separately. `--fail-with-body` writes the body to stdout and exits nonzero, but
 # under command substitution + `set -e` the script dies before anything is printed — so a 403 from the edge
@@ -111,8 +116,11 @@ printed="$(wc -l < "$streamed" | tr -d ' ')"
 # This loop therefore keeps printing: new log lines when there are any, and a liveness line when there are
 # not. Previously it polled silently until the run settled, so a healthy build looked identical to a hung
 # one for ten minutes. The durable fix is a heartbeat on the producer; this keeps the job legible either way.
+# 120 polls x 15s = 30 minutes, which fits a ~14-minute gate with room to spare. A delivery run does more
+# — build, publish two images, render, push, sync, smoke — so the caller raises this rather than having the
+# client give up on a run that is still going.
 quiet=0
-for poll in $(seq 1 120); do
+for poll in $(seq 1 "${KONTINUANCE_MAX_POLLS:-120}"); do
   record="$(curl -sS "${auth[@]}" "${KONTINUANCE_URL}/api/runs/${run_id}")"
   status="$(printf '%s' "$record" | jq -r '.status')"
 
@@ -149,5 +157,6 @@ for poll in $(seq 1 120); do
   sleep 15
 done
 
-echo "timed out waiting for ${run_id}" >&2
+echo "timed out waiting for ${run_id} after ${KONTINUANCE_MAX_POLLS:-120} polls" >&2
+echo "the run may still be going; check ${KONTINUANCE_URL}/runs/${run_id}" >&2
 exit 1
