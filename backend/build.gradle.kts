@@ -108,6 +108,17 @@ tasks.withType<Test> {
     testLogging { exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     // Real-client round-trip tests drive the repo's Gradle wrapper and the system Maven via
     // external processes (keeping gradle-api/maven libs off the test classpath).
+    // Spring Boot 4 defaults `server.shutdown` to graceful, and the TestContext cache keeps every distinct
+    // @SpringBootTest configuration alive for the whole JVM — about 30 of them here, each with its own
+    // Tomcat. At JVM exit they drain one after another, and any context holding a stalled request waits out
+    // `timeout-per-shutdown-phase` (default 30s) before giving up. That teardown, not the tests, is what ran
+    // the gate past 10 minutes with every test already passed (HS-33).
+    //
+    // Set as system properties rather than in a test YAML on purpose: several tests pin
+    // `spring.config.location`, which would bypass a default application.yml. A system property is a
+    // high-precedence source every context sees, whatever config file it loads.
+    systemProperty("server.shutdown", "immediate")
+    systemProperty("spring.lifecycle.timeout-per-shutdown-phase", "1s")
     systemProperty("relikquary.rootProjectDir", rootProject.layout.projectDirectory.asFile.absolutePath)
     systemProperty("relikquary.mavenExecutable", resolveMavenExecutable())
     // Keep the default (SQLite) persistence backend's database file inside the build directory during
