@@ -18,7 +18,11 @@ jobs:
   # not asking for — and the gate would silently stop blocking merges.
   gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 60, not 30: a cold Gradle cache on the Mini plus `:integration-tests` has taken over 30 minutes, and
+    # the job timeout cancelled a build that was still progressing — reported as a failed gate, which looks
+    # like the code when it is the clock. Raise this and the client's poll budget together or the script
+    # gives up first; KONTINUANCE_MAX_POLLS below is the matching half.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +32,9 @@ jobs:
           KONTINUANCE_CI_TOKEN: ${{ secrets.KONTINUANCE_CI_TOKEN }}
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          # 220 x 15s ~= 55 minutes, inside the job timeout above. The script's own default is 120 (30
+          # minutes), which would end the run before the job's budget was spent.
+          KONTINUANCE_MAX_POLLS: "220"
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
