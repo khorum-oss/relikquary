@@ -13,8 +13,10 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.net.http.HttpTimeoutException
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.time.Duration
 
 /**
  * Feature 021 (US1): a real hosted push→pull→tags→re-tag→delete round-trip against the running server with
@@ -31,7 +33,14 @@ class ContainerRegistryRoundTripTest {
     @LocalServerPort
     var port: Int = 0
 
-    private val http: HttpClient = HttpClient.newHttpClient()
+    // Every request this client makes is bounded. An unbounded one parked the single Gradle test worker for
+    // an hour and reported as a slow build rather than a stuck one (HS-33): the server accepted the POST and
+    // never answered, and `HttpClient` waits forever by default. `connectTimeout` does NOT cover that — the
+    // connection to a local port succeeds instantly; it is the response that never comes — so the bound has
+    // to be per-request, which is what `request()` below exists to guarantee.
+    private val http: HttpClient = HttpClient.newBuilder()
+        .connectTimeout(REQUEST_TIMEOUT)
+        .build()
 
     companion object {
         const val HTTP_OK = 200
@@ -45,6 +54,14 @@ class ContainerRegistryRoundTripTest {
         const val IMAGE = "team/service"
         const val DIGEST_HEADER = "Docker-Content-Digest"
         const val SHA256_HEX_LENGTH = 64
+
+        /**
+         * How long any single call may take before the test fails instead of waiting.
+         *
+         * 30s is far longer than this round-trip needs — it runs in ~5s end to end against filesystem
+         * storage — and short enough that a stall is reported in the time a person waits for a check.
+         */
+        val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
 
         @TempDir
         @JvmStatic
@@ -118,40 +135,67 @@ class ContainerRegistryRoundTripTest {
 
     private fun url(path: String) = URI.create("http://127.0.0.1:$port$path")
 
+    /**
+     * A request builder for [path], already bounded by [REQUEST_TIMEOUT].
+     *
+     * Every request in this test is built here rather than from `HttpRequest.newBuilder` directly, so the
+     * bound cannot be forgotten on a later addition — which is exactly how this test came to hang.
+     */
+    private fun request(path: String): HttpRequest.Builder =
+        HttpRequest.newBuilder(url(path)).timeout(REQUEST_TIMEOUT)
+
+    /**
+     * Sends [req], turning a timeout into a failure that names the call instead of an opaque stack.
+     *
+     * A `HttpTimeoutException` here means the server took the request and produced no response — the stall
+     * this test is now guarded against. The message says which call and how long, so the next person reads
+     * the cause off the report instead of taking a thread dump.
+     */
+    private fun <T> send(req: HttpRequest, handler: HttpResponse.BodyHandler<T>): HttpResponse<T> =
+        try {
+            http.send(req, handler)
+        } catch (timeout: HttpTimeoutException) {
+            throw AssertionError(
+                "no response within $REQUEST_TIMEOUT for ${req.method()} ${req.uri().path} — the server " +
+                    "accepted the request and never answered it (see HS-33)",
+                timeout,
+            )
+        }
+
     private fun pushBlob(repo: String, bytes: ByteArray): String {
         val digest = digestOf(bytes)
-        val req = HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/blobs/uploads/?digest=$digest"))
+        val req = request("/v2/$repo/$IMAGE/blobs/uploads/?digest=$digest")
             .header("Content-Type", "application/octet-stream")
             .POST(HttpRequest.BodyPublishers.ofByteArray(bytes)).build()
-        assertEquals(HTTP_CREATED, http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode(), "blob upload")
+        assertEquals(HTTP_CREATED, send(req, HttpResponse.BodyHandlers.discarding()).statusCode(), "blob upload")
         return digest
     }
 
     private fun startUpload(repo: String, digest: String): Int {
-        val req = HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/blobs/uploads/?digest=$digest"))
+        val req = request("/v2/$repo/$IMAGE/blobs/uploads/?digest=$digest")
             .header("Content-Type", "application/octet-stream")
             .POST(HttpRequest.BodyPublishers.ofByteArray("x".toByteArray())).build()
-        return http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode()
+        return send(req, HttpResponse.BodyHandlers.discarding()).statusCode()
     }
 
     private fun putManifest(repo: String, ref: String, body: ByteArray): HttpResponse<Void> {
-        val req = HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/manifests/$ref"))
+        val req = request("/v2/$repo/$IMAGE/manifests/$ref")
             .header("Content-Type", IMAGE_TYPE)
             .PUT(HttpRequest.BodyPublishers.ofByteArray(body)).build()
-        return http.send(req, HttpResponse.BodyHandlers.discarding())
+        return send(req, HttpResponse.BodyHandlers.discarding())
     }
 
     private fun getManifest(repo: String, ref: String): HttpResponse<ByteArray> {
-        val req = HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/manifests/$ref"))
+        val req = request("/v2/$repo/$IMAGE/manifests/$ref")
             .header("Accept", IMAGE_TYPE).GET().build()
-        return http.send(req, HttpResponse.BodyHandlers.ofByteArray())
+        return send(req, HttpResponse.BodyHandlers.ofByteArray())
     }
 
     private fun getManifestByDigest(repo: String, digest: String): HttpResponse<ByteArray> = getManifest(repo, digest)
 
     private fun assertBlob(repo: String, digest: String, expected: ByteArray) {
-        val res = http.send(
-            HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/blobs/$digest")).GET().build(),
+        val res = send(
+            request("/v2/$repo/$IMAGE/blobs/$digest").GET().build(),
             HttpResponse.BodyHandlers.ofByteArray(),
         )
         assertEquals(HTTP_OK, res.statusCode(), "blob pull")
@@ -160,11 +204,11 @@ class ContainerRegistryRoundTripTest {
     }
 
     private fun getTags(repo: String): String =
-        http.send(HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/tags/list")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+        send(request("/v2/$repo/$IMAGE/tags/list").GET().build(), HttpResponse.BodyHandlers.ofString()).body()
 
     private fun deleteManifest(repo: String, ref: String): Int {
-        val req = HttpRequest.newBuilder(url("/v2/$repo/$IMAGE/manifests/$ref")).DELETE().build()
-        return http.send(req, HttpResponse.BodyHandlers.discarding()).statusCode()
+        val req = request("/v2/$repo/$IMAGE/manifests/$ref").DELETE().build()
+        return send(req, HttpResponse.BodyHandlers.discarding()).statusCode()
     }
 
     private fun imageManifest(configDigest: String, configSize: Int, layers: List<Pair<String, Int>>): ByteArray {

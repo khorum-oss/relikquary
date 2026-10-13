@@ -13,7 +13,11 @@ relikquary:
     - name: mirror            # proxy container repo — pull-through over the in-JVM OCI upstream stub
       format: container
       kind: proxy
-      remoteUrl: ${TEST_OCI_UPSTREAM:https://registry-1.docker.io}
+      # The default is a port nothing listens on, NOT Docker Hub. ContainerProxyRoundTripTest injects the
+      # in-JVM stub through TEST_OCI_UPSTREAM; any test that forgets to should fail against a refused
+      # connection immediately, rather than silently reaching the real internet from a unit-scope suite and
+      # behaving differently on a laptop, a GitHub runner and the Mini (HS-33).
+      remoteUrl: ${TEST_OCI_UPSTREAM:http://127.0.0.1:1}
   storage:
     backend: filesystem
     filesystem:
